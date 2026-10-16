@@ -11,7 +11,7 @@ describe('contracts', () => {
     ).toBe(false);
   });
 
-  it('requires https destinations', () => {
+  it('requires https destinations and non-empty event filters', () => {
     expect(
       createDestinationSchema.safeParse({ name: 'x', url: 'http://example.com', enabled: true })
         .success,
@@ -20,6 +20,14 @@ describe('contracts', () => {
       createDestinationSchema.safeParse({ name: 'x', url: 'https://example.com', enabled: true })
         .success,
     ).toBe(true);
+    expect(
+      createDestinationSchema.safeParse({
+        name: 'x',
+        url: 'https://example.com',
+        enabled: true,
+        eventTypes: [],
+      }).success,
+    ).toBe(false);
   });
 
   it('bounds pagination', () => {

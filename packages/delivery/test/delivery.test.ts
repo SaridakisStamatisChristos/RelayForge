@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HttpDeliveryClient, assertSafeDestinationUrl, classifyStatus } from '../src/index.js';
+import {
+  HttpDeliveryClient,
+  assertSafeDestinationUrl,
+  classifyNetworkError,
+  classifyStatus,
+} from '../src/index.js';
 
 const event = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -57,9 +62,24 @@ describe('delivery classification', () => {
     expect(result.errorCode).toBe('NETWORK_ERROR');
   });
 
-  it('classifies an aborted network request as a retryable timeout', async () => {
+  it('classifies AbortSignal.timeout failures as retryable timeouts', async () => {
+    const signal = AbortSignal.timeout(1);
+    if (!signal.aborted) {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+    }
+    expect(signal.reason).toBeInstanceOf(DOMException);
+    expect((signal.reason as DOMException).name).toBe('TimeoutError');
+    expect(classifyNetworkError(signal.reason)).toEqual({
+      outcome: 'retryable_failure',
+      errorCode: 'TIMEOUT',
+    });
+  });
+
+  it('classifies explicit aborts as retryable timeouts', async () => {
     const client = new HttpDeliveryClient({
-      fetchFn: vi.fn(async () => Promise.reject(new DOMException('timed out', 'AbortError'))),
+      fetchFn: vi.fn(async () => Promise.reject(new DOMException('aborted', 'AbortError'))),
     });
     const result = await client.deliver(event, destination);
     expect(result.outcome).toBe('retryable_failure');

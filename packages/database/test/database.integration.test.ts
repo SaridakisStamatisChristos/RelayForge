@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ConflictError } from '@relayforge/core';
-import { PostgresRelayStore } from '../src/index.js';
+import { ConflictError, ValidationError, encodeCursor } from '@relayforge/core';
+import { DELIVERY_CLAIM_LEASE_MS, PostgresRelayStore } from '../src/index.js';
 import { migrate, verifyAppliedMigrations } from '../src/migrations.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -31,6 +32,21 @@ async function destination() {
 }
 
 describe('database invariants', () => {
+  it('serializes concurrent first-run migration attempts', async () => {
+    const schema = `relayforge_migration_race_${randomUUID().replaceAll('-', '')}`;
+    await pool.query(`CREATE SCHEMA "${schema}"`);
+    const options = `-c search_path=${schema}`;
+    const firstPool = new Pool({ connectionString: databaseUrl, max: 2, options });
+    const secondPool = new Pool({ connectionString: databaseUrl, max: 2, options });
+    try {
+      await Promise.all([migrate(firstPool), migrate(secondPool)]);
+      await verifyAppliedMigrations(firstPool);
+    } finally {
+      await Promise.all([firstPool.end(), secondPool.end()]);
+      await pool.query(`DROP SCHEMA "${schema}" CASCADE`);
+    }
+  });
+
   it('enforces sequential and concurrent idempotency in PostgreSQL', async () => {
     await destination();
     const input = {
@@ -110,6 +126,17 @@ describe('database invariants', () => {
     expect(jobs.rows.map((row) => row.name)).toEqual(['match', 'unfiltered']);
   });
 
+  it('rejects empty destination event filters at the persistence boundary', async () => {
+    await expect(
+      store.createDestination({
+        name: 'empty-filter',
+        url: 'https://example.com/empty',
+        enabled: true,
+        eventTypes: [],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
   it('rolls back event persistence when initial job creation fails', async () => {
     await destination();
     await pool.query(`
@@ -153,6 +180,13 @@ describe('database invariants', () => {
     expect(new Set([...first.items, ...second.items].map((event) => event.id)).size).toBe(4);
   });
 
+  it('rejects cursor IDs that PostgreSQL cannot cast to UUID', async () => {
+    const malformedCursor = encodeCursor(new Date('2026-01-01T00:00:00.000Z'), 'not-a-uuid');
+    await expect(store.listEvents({ limit: 2, cursor: malformedCursor })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
+
   it('claims one job once when workers race', async () => {
     await destination();
     await store.createEvent({ type: 'invoice.paid', source: 'billing', payload: {} });
@@ -161,6 +195,62 @@ describe('database invariants', () => {
       store.claimDueJob(new Date()),
     ]);
     expect(claims.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('reclaims expired processing leases and fences stale workers', async () => {
+    await destination();
+    await store.createEvent({ type: 'invoice.paid', source: 'billing', payload: {} });
+    const firstNow = new Date();
+    const firstClaim = await store.claimDueJob(firstNow);
+    if (!firstClaim) throw new Error('expected first claim');
+
+    const beforeExpiry = await store.claimDueJob(
+      new Date(firstNow.getTime() + DELIVERY_CLAIM_LEASE_MS - 1),
+    );
+    expect(beforeExpiry).toBeNull();
+
+    const reclaimed = await store.claimDueJob(
+      new Date(firstNow.getTime() + DELIVERY_CLAIM_LEASE_MS + 1),
+    );
+    if (!reclaimed) throw new Error('expected stale job to be reclaimed');
+    expect(reclaimed.jobId).toBe(firstClaim.jobId);
+    expect(reclaimed.attemptNumber).toBe(firstClaim.attemptNumber + 1);
+
+    await expect(
+      store.markDelivered({
+        jobId: firstClaim.jobId,
+        eventId: firstClaim.event.id,
+        destinationId: firstClaim.destination.id,
+        attemptNumber: firstClaim.attemptNumber,
+        outcome: 'success',
+        statusCode: 200,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    await store.markDelivered({
+      jobId: reclaimed.jobId,
+      eventId: reclaimed.event.id,
+      destinationId: reclaimed.destination.id,
+      attemptNumber: reclaimed.attemptNumber,
+      outcome: 'success',
+      statusCode: 200,
+    });
+  });
+
+  it('reclaims legacy processing jobs that have no lease after the grace period', async () => {
+    await destination();
+    await store.createEvent({ type: 'invoice.paid', source: 'billing', payload: {} });
+    const now = new Date();
+    const claim = await store.claimDueJob(now);
+    if (!claim) throw new Error('expected claim');
+    const staleUpdatedAt = new Date(now.getTime() - DELIVERY_CLAIM_LEASE_MS - 1);
+    await pool.query(
+      `UPDATE delivery_jobs SET next_attempt_at = NULL, updated_at = $2 WHERE id = $1`,
+      [claim.jobId, staleUpdatedAt],
+    );
+    const reclaimed = await store.claimDueJob(now);
+    expect(reclaimed?.jobId).toBe(claim.jobId);
+    expect(reclaimed?.attemptNumber).toBe(claim.attemptNumber + 1);
   });
 
   it('persists attempts and dead letters atomically', async () => {

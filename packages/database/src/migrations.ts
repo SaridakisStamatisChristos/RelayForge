@@ -11,6 +11,9 @@ export interface MigrationFile {
   sql: string;
 }
 
+const MIGRATION_LOCK_NAMESPACE = 0x5246;
+const MIGRATION_LOCK_ID = 1;
+
 export async function loadMigrations(
   directory = new URL('../migrations/', import.meta.url),
 ): Promise<MigrationFile[]> {
@@ -32,34 +35,51 @@ export async function loadMigrations(
 }
 
 export async function migrate(pool: Pool): Promise<void> {
-  await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
-    version TEXT PRIMARY KEY,
-    checksum TEXT NOT NULL,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
-  for (const migration of await loadMigrations()) {
-    const existing = await pool.query<{ checksum: string }>(
-      'SELECT checksum FROM schema_migrations WHERE version = $1',
-      [migration.version],
-    );
-    if (existing.rowCount === 1) {
-      if (existing.rows[0]?.checksum !== migration.checksum) {
-        throw new Error(`Migration checksum mismatch for ${migration.filename}`);
+  const client = await pool.connect();
+  let locked = false;
+  try {
+    await client.query('SELECT pg_advisory_lock($1, $2)', [
+      MIGRATION_LOCK_NAMESPACE,
+      MIGRATION_LOCK_ID,
+    ]);
+    locked = true;
+    await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY,
+      checksum TEXT NOT NULL,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+    for (const migration of await loadMigrations()) {
+      const existing = await client.query<{ checksum: string }>(
+        'SELECT checksum FROM schema_migrations WHERE version = $1',
+        [migration.version],
+      );
+      if (existing.rowCount === 1) {
+        if (existing.rows[0]?.checksum !== migration.checksum) {
+          throw new Error(`Migration checksum mismatch for ${migration.filename}`);
+        }
+        continue;
       }
-      continue;
+      try {
+        await client.query('BEGIN');
+        await client.query(migration.sql);
+        await client.query('INSERT INTO schema_migrations(version, checksum) VALUES ($1, $2)', [
+          migration.version,
+          migration.checksum,
+        ]);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
     }
-    const client = await pool.connect();
+  } finally {
     try {
-      await client.query('BEGIN');
-      await client.query(migration.sql);
-      await client.query('INSERT INTO schema_migrations(version, checksum) VALUES ($1, $2)', [
-        migration.version,
-        migration.checksum,
-      ]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
+      if (locked) {
+        await client.query('SELECT pg_advisory_unlock($1, $2)', [
+          MIGRATION_LOCK_NAMESPACE,
+          MIGRATION_LOCK_ID,
+        ]);
+      }
     } finally {
       client.release();
     }

@@ -27,9 +27,11 @@ describe('job transitions', () => {
 });
 
 describe('cursor', () => {
-  it('round-trips and rejects malformed cursors', () => {
+  it('round-trips generated UUID cursors and rejects malformed cursor IDs', () => {
     const date = new Date('2026-01-01T00:00:00.000Z');
-    expect(decodeCursor(encodeCursor(date, 'abc'))).toEqual({ createdAt: date, id: 'abc' });
+    const id = '11111111-1111-4111-8111-111111111111';
+    expect(decodeCursor(encodeCursor(date, id))).toEqual({ createdAt: date, id });
+    expect(() => decodeCursor(encodeCursor(date, 'abc'))).toThrow(ValidationError);
     expect(() => decodeCursor('not-a-cursor')).toThrow(ValidationError);
   });
 });
@@ -46,6 +48,7 @@ describe('destination filtering', () => {
   it('respects enabled flag and event filters', () => {
     expect(eventMatchesDestination('a', base)).toBe(true);
     expect(eventMatchesDestination('a', { ...base, enabled: false })).toBe(false);
+    expect(eventMatchesDestination('a', { ...base, eventTypes: [] })).toBe(false);
     expect(eventMatchesDestination('a', { ...base, eventTypes: ['b'] })).toBe(false);
     expect(eventMatchesDestination('a', { ...base, eventTypes: ['a'] })).toBe(true);
   });

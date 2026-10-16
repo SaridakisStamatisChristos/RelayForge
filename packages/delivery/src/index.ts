@@ -27,7 +27,10 @@ export function classifyNetworkError(error: unknown): {
   outcome: 'retryable_failure';
   errorCode: string;
 } {
-  if (error instanceof DOMException && error.name === 'AbortError') {
+  if (
+    error instanceof DOMException &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
+  ) {
     return { outcome: 'retryable_failure', errorCode: 'TIMEOUT' };
   }
   const code =

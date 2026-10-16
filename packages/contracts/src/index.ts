@@ -46,7 +46,7 @@ export const createDestinationSchema = z.object({
     .url()
     .refine((value) => new URL(value).protocol === 'https:', 'Destination URL must use https://'),
   enabled: z.boolean().default(true),
-  eventTypes: z.array(z.string().trim().min(1).max(EVENT_TYPE_MAX)).max(100).optional(),
+  eventTypes: z.array(z.string().trim().min(1).max(EVENT_TYPE_MAX)).min(1).max(100).optional(),
 });
 export type CreateDestinationInput = z.infer<typeof createDestinationSchema>;
 

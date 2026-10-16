@@ -9,7 +9,7 @@ import {
   patchDestinationSchema,
 } from '@relayforge/contracts';
 import { loadConfig } from '@relayforge/config';
-import { AppError, ValidationError, type ApiStore } from '@relayforge/core';
+import { AppError, DatabaseError, ValidationError, type ApiStore } from '@relayforge/core';
 import { PostgresRelayStore, createPool } from '@relayforge/database';
 import { requireApiKey } from './auth/api-key.js';
 
@@ -30,6 +30,13 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false, disableRequestLogging: true });
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof DatabaseError) {
+      request.log.error({ err: error }, 'Database request error');
+      void reply
+        .status(error.httpStatus)
+        .send({ error: { code: error.code, message: 'Database operation failed' } });
+      return;
+    }
     if (error instanceof AppError) {
       void reply
         .status(error.httpStatus)

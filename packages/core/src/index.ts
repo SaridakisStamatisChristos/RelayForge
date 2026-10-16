@@ -192,6 +192,8 @@ interface CursorPayload {
   id: string;
 }
 
+const cursorUuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu;
+
 export function encodeCursor(createdAt: Date, id: string): string {
   return Buffer.from(
     JSON.stringify({ createdAt: createdAt.toISOString(), id } satisfies CursorPayload),
@@ -209,9 +211,11 @@ export function decodeCursor(cursor: string): { createdAt: Date; id: string } {
     ) {
       throw new Error('invalid shape');
     }
-    const createdAt = new Date((value as CursorPayload).createdAt);
+    const payload = value as CursorPayload;
+    const createdAt = new Date(payload.createdAt);
     if (Number.isNaN(createdAt.getTime())) throw new Error('invalid date');
-    return { createdAt, id: (value as CursorPayload).id };
+    if (!cursorUuidPattern.test(payload.id)) throw new Error('invalid id');
+    return { createdAt, id: payload.id };
   } catch {
     throw new ValidationError('Invalid pagination cursor');
   }
@@ -223,9 +227,7 @@ export function eventMatchesDestination(
 ): boolean {
   return (
     destination.enabled &&
-    (destination.eventTypes === undefined ||
-      destination.eventTypes.length === 0 ||
-      destination.eventTypes.includes(eventType))
+    (destination.eventTypes === undefined || destination.eventTypes.includes(eventType))
   );
 }
 

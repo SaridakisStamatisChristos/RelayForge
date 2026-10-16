@@ -12,11 +12,11 @@ Event insertion and initial delivery-job creation occur in one PostgreSQL transa
 
 ## Worker claim
 
-Workers select a due job with `FOR UPDATE OF j SKIP LOCKED`, then change it to `processing` and increment `attempt_count` inside the same transaction. This permits multiple workers without an in-memory lock and prevents one job being claimed twice concurrently.
+Workers select a due job with `FOR UPDATE OF j SKIP LOCKED`, then change it to `processing`, increment `attempt_count`, and assign a bounded processing lease in the same transaction. Expired `processing` leases are reclaimable, so a worker crash cannot strand a job indefinitely. Legacy `processing` rows without a lease become reclaimable only after the same grace period. Terminal and retry writes are fenced by the claimed `attempt_count`, preventing an older worker from completing a job after a newer worker has reclaimed it.
 
 ## Delivery state machine
 
-`pending -> processing -> delivered | retry_scheduled | dead_lettered`; `retry_scheduled -> processing`. Retry delays are deterministic, exponential and bounded. Attempts are immutable rows. Permanent or exhausted failures create a dead letter in the same transaction as the terminal job update.
+`pending -> processing -> delivered | retry_scheduled | dead_lettered`; `retry_scheduled -> processing`. Retry delays are deterministic, exponential and bounded. Attempts are immutable rows. Permanent or exhausted failures create a dead letter in the same transaction as the terminal job update. Delivery remains at-least-once: reclaiming an expired lease can repeat an outbound request when the previous worker's delivery result was unknown.
 
 ## Replay
 

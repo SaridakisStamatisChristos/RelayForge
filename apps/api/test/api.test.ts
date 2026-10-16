@@ -16,7 +16,7 @@ import type {
   EventListQuery,
   PatchDestinationInput,
 } from '@relayforge/contracts';
-import { NotFoundError } from '@relayforge/core';
+import { DatabaseError, NotFoundError } from '@relayforge/core';
 import { buildServer } from '../src/server.js';
 
 class MemoryStore implements ApiStore {
@@ -171,7 +171,7 @@ describe('API', () => {
     expect(second.json<{ created: boolean }>().created).toBe(false);
   });
 
-  it('rejects malformed events and non-https destinations', async () => {
+  it('rejects malformed events, non-https destinations, and empty event filters', async () => {
     expect(
       (
         await app.inject({
@@ -192,6 +192,33 @@ describe('API', () => {
         })
       ).statusCode,
     ).toBe(400);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/destinations',
+          headers: auth,
+          payload: { name: 'd', url: 'https://example.com', enabled: true, eventTypes: [] },
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
+
+  it('does not expose database diagnostics in HTTP error responses', async () => {
+    store.createEvent = async () => {
+      throw new DatabaseError('relation private_internal_table does not exist');
+    };
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/events',
+      headers: auth,
+      payload: { type: 'x', source: 's', payload: {} },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({
+      error: { code: 'DATABASE_ERROR', message: 'Database operation failed' },
+    });
+    expect(response.body).not.toContain('private_internal_table');
   });
 
   it('creates and disables destinations', async () => {

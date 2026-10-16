@@ -11,6 +11,7 @@ import {
   ConflictError,
   DatabaseError,
   NotFoundError,
+  ValidationError,
   decodeCursor,
   encodeCursor,
   type ApiStore,
@@ -25,6 +26,8 @@ import {
   type ReplayResult,
   type WorkerStore,
 } from '@relayforge/core';
+
+export const DELIVERY_CLAIM_LEASE_MS = 60_000;
 
 interface EventRow extends QueryResultRow {
   id: string;
@@ -283,6 +286,9 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
   }
 
   async createDestination(input: CreateDestinationInput): Promise<DestinationRecord> {
+    if (input.eventTypes?.length === 0) {
+      throw new ValidationError('Destination eventTypes must contain at least one event type');
+    }
     const result = await this.pool.query<DestinationRow>(
       `INSERT INTO destinations(id, name, url, enabled, event_types)
        VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *`,
@@ -398,6 +404,8 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
   }
 
   async claimDueJob(now: Date): Promise<ClaimedDelivery | null> {
+    const leaseExpiresAt = new Date(now.getTime() + DELIVERY_CLAIM_LEASE_MS);
+    const staleLegacyCutoff = new Date(now.getTime() - DELIVERY_CLAIM_LEASE_MS);
     return inTransaction(this.pool, async (client) => {
       const result = await client.query<
         QueryResultRow & {
@@ -431,18 +439,27 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
          FROM delivery_jobs j
          JOIN events e ON e.id = j.event_id
          JOIN destinations d ON d.id = j.destination_id
-         WHERE j.state IN ('pending','retry_scheduled')
-           AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= $1)
+         WHERE (
+           (j.state IN ('pending','retry_scheduled')
+             AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= $1))
+           OR
+           (j.state = 'processing'
+             AND (
+               (j.next_attempt_at IS NOT NULL AND j.next_attempt_at <= $1)
+               OR (j.next_attempt_at IS NULL AND j.updated_at <= $2)
+             ))
+         )
          ORDER BY COALESCE(j.next_attempt_at, j.created_at), j.created_at, j.id
          FOR UPDATE OF j SKIP LOCKED LIMIT 1`,
-        [now],
+        [now, staleLegacyCutoff],
       );
       const row = result.rows[0];
       if (!row) return null;
       const updated = await client.query<{ attempt_count: number }>(
-        `UPDATE delivery_jobs SET state = 'processing', attempt_count = attempt_count + 1, updated_at = now()
+        `UPDATE delivery_jobs
+         SET state = 'processing', attempt_count = attempt_count + 1, next_attempt_at = $2, updated_at = now()
          WHERE id = $1 RETURNING attempt_count`,
-        [row.job_id],
+        [row.job_id, leaseExpiresAt],
       );
       await refreshEventStatus(client, row.event_id);
       return {
@@ -495,8 +512,8 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
       await this.recordAttempt(client, attempt);
       const updated = await client.query(
         `UPDATE delivery_jobs SET state = 'delivered', next_attempt_at = NULL, updated_at = now()
-         WHERE id = $1 AND state = 'processing'`,
-        [attempt.jobId],
+         WHERE id = $1 AND state = 'processing' AND attempt_count = $2`,
+        [attempt.jobId, attempt.attemptNumber],
       );
       if (updated.rowCount !== 1) throw new ConflictError('Delivery job is not processing');
       await refreshEventStatus(client, attempt.eventId);
@@ -507,9 +524,9 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
     await inTransaction(this.pool, async (client) => {
       await this.recordAttempt(client, attempt);
       const updated = await client.query(
-        `UPDATE delivery_jobs SET state = 'retry_scheduled', next_attempt_at = $2, updated_at = now()
-         WHERE id = $1 AND state = 'processing'`,
-        [attempt.jobId, nextAttemptAt],
+        `UPDATE delivery_jobs SET state = 'retry_scheduled', next_attempt_at = $3, updated_at = now()
+         WHERE id = $1 AND state = 'processing' AND attempt_count = $2`,
+        [attempt.jobId, attempt.attemptNumber, nextAttemptAt],
       );
       if (updated.rowCount !== 1) throw new ConflictError('Delivery job is not processing');
       await refreshEventStatus(client, attempt.eventId);
@@ -521,8 +538,8 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
       await this.recordAttempt(client, attempt);
       const updated = await client.query(
         `UPDATE delivery_jobs SET state = 'dead_lettered', next_attempt_at = NULL, updated_at = now()
-         WHERE id = $1 AND state = 'processing'`,
-        [attempt.jobId],
+         WHERE id = $1 AND state = 'processing' AND attempt_count = $2`,
+        [attempt.jobId, attempt.attemptNumber],
       );
       if (updated.rowCount !== 1) throw new ConflictError('Delivery job is not processing');
       await client.query(

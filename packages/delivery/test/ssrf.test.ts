@@ -10,43 +10,45 @@ import {
   type OutboundRequest,
 } from '../src/index.js';
 
+const blockedAddresses = [
+  '0.0.0.0',
+  '10.0.0.1',
+  '100.100.100.200',
+  '127.0.0.1',
+  '169.254.169.254',
+  '172.16.0.1',
+  '192.168.1.1',
+  '192.0.2.1',
+  '198.18.0.1',
+  '224.0.0.1',
+  '255.255.255.255',
+  '::',
+  '::1',
+  '::ffff:127.0.0.1',
+  '64:ff9b::a9fe:a9fe',
+  'fc00::1',
+  'fe80::1',
+  'ff02::1',
+  '2001:db8::1',
+  '2002:7f00:1::',
+  '3fff::1',
+] as const;
+
 describe('SSRF protection', () => {
-  it.each([
-    '8.8.8.8',
-    '1.1.1.1',
-    '2606:4700:4700::1111',
-    '2001:4860:4860::8888',
-  ])('allows public address %s', (address) => {
-    expect(isPublicIpAddress(address)).toBe(true);
+  it('allows representative public IPv4 and IPv6 addresses', () => {
+    expect(isPublicIpAddress('8.8.8.8')).toBe(true);
+    expect(isPublicIpAddress('1.1.1.1')).toBe(true);
+    expect(isPublicIpAddress('2606:4700:4700::1111')).toBe(true);
+    expect(isPublicIpAddress('2001:4860:4860::8888')).toBe(true);
   });
 
-  it.each([
-    '0.0.0.0',
-    '10.0.0.1',
-    '100.100.100.200',
-    '127.0.0.1',
-    '169.254.169.254',
-    '172.16.0.1',
-    '192.168.1.1',
-    '192.0.2.1',
-    '198.18.0.1',
-    '224.0.0.1',
-    '255.255.255.255',
-    '::',
-    '::1',
-    '::ffff:127.0.0.1',
-    '64:ff9b::a9fe:a9fe',
-    'fc00::1',
-    'fe80::1',
-    'ff02::1',
-    '2001:db8::1',
-    '2002:7f00:1::',
-    '3fff::1',
-  ])('blocks non-public or special address %s', (address) => {
-    expect(isPublicIpAddress(address)).toBe(false);
+  it('blocks private, metadata, and special IP ranges', () => {
+    for (const address of blockedAddresses) {
+      expect(isPublicIpAddress(address), address).toBe(false);
+    }
   });
 
-  it('rejects localhost names and normalized alternate IPv4 loopback forms', async () => {
+  it('rejects localhost names and alternate IPv4 loopback forms', async () => {
     const resolver = vi.fn(async () => [{ address: '8.8.8.8', family: 4 as const }]);
     await expect(resolvePublicDestinationAddress('localhost', resolver)).rejects.toBeInstanceOf(
       UnsafeDestinationError,
@@ -63,7 +65,7 @@ describe('SSRF protection', () => {
     expect(resolver).not.toHaveBeenCalled();
   });
 
-  it('rejects a hostname when any DNS answer is private', async () => {
+  it('rejects mixed public and private DNS answers', async () => {
     const resolver = vi.fn(async () => [
       { address: '8.8.8.8', family: 4 as const },
       { address: '10.0.0.9', family: 4 as const },
@@ -73,7 +75,7 @@ describe('SSRF protection', () => {
     ).rejects.toBeInstanceOf(UnsafeDestinationError);
   });
 
-  it('rejects metadata-style IPv4 and IPv6 destinations before any request is sent', async () => {
+  it('rejects metadata-style IPv4 and IPv6 destinations', async () => {
     await expect(resolvePublicDestinationAddress('169.254.169.254')).rejects.toBeInstanceOf(
       UnsafeDestinationError,
     );
@@ -82,55 +84,52 @@ describe('SSRF protection', () => {
     );
   });
 
-  it(
-    'pins the HTTPS connection to the validated DNS answer and disables connection reuse',
-    async () => {
-      let resolverCalls = 0;
-      const resolver = vi.fn(async () => {
-        resolverCalls += 1;
-        return resolverCalls === 1
-          ? [{ address: '8.8.8.8', family: 4 as const }]
-          : [{ address: '10.0.0.9', family: 4 as const }];
+  it('pins the validated DNS answer without a second resolution', async () => {
+    let resolverCalls = 0;
+    const resolver = vi.fn(async () => {
+      resolverCalls += 1;
+      return resolverCalls === 1
+        ? [{ address: '8.8.8.8', family: 4 as const }]
+        : [{ address: '10.0.0.9', family: 4 as const }];
+    });
+
+    let lookupAddress: string | undefined;
+    let lookupFamily: number | undefined;
+    let capturedAgent: boolean | undefined;
+    const fakeRequest: OutboundRequest = {
+      once: () => fakeRequest,
+      end: () => undefined,
+    };
+    const requestFactory: HttpsRequestFactory = (_url, options, onResponse) => {
+      capturedAgent = options.agent as boolean | undefined;
+      if (!options.lookup) throw new Error('expected pinned lookup');
+      options.lookup('rebound.example', { all: false }, (error, address, family) => {
+        if (error) throw error;
+        if (typeof address !== 'string') throw new Error('expected one pinned address');
+        lookupAddress = address;
+        lookupFamily = family;
       });
+      queueMicrotask(() =>
+        onResponse(
+          {
+            statusCode: 202,
+            resume() {
+              return this;
+            },
+          } as unknown as IncomingMessage,
+        ),
+      );
+      return fakeRequest;
+    };
 
-      let lookupAddress: string | undefined;
-      let lookupFamily: number | undefined;
-      let capturedAgent: boolean | undefined;
-      const fakeRequest: OutboundRequest = {
-        once: () => fakeRequest,
-        end: () => undefined,
-      };
-      const requestFactory: HttpsRequestFactory = (_url, options, onResponse) => {
-        capturedAgent = options.agent as boolean | undefined;
-        if (!options.lookup) throw new Error('expected pinned lookup');
-        options.lookup('rebound.example', { all: false }, (error, address, family) => {
-          if (error) throw error;
-          if (typeof address !== 'string') throw new Error('expected one pinned address');
-          lookupAddress = address;
-          lookupFamily = family;
-        });
-        queueMicrotask(() =>
-          onResponse(
-            {
-              statusCode: 202,
-              resume() {
-                return this;
-              },
-            } as unknown as IncomingMessage,
-          ),
-        );
-        return fakeRequest;
-      };
+    const transport = new PinnedHttpsTransport({ resolver, requestFactory });
+    await expect(
+      transport.postJson(new URL('https://rebound.example/hook'), '{}', 1_000),
+    ).resolves.toBe(202);
 
-      const transport = new PinnedHttpsTransport({ resolver, requestFactory });
-      await expect(
-        transport.postJson(new URL('https://rebound.example/hook'), '{}', 1_000),
-      ).resolves.toBe(202);
-
-      expect(resolver).toHaveBeenCalledOnce();
-      expect(lookupAddress).toBe('8.8.8.8');
-      expect(lookupFamily).toBe(4);
-      expect(capturedAgent).toBe(false);
-    },
-  );
+    expect(resolver).toHaveBeenCalledOnce();
+    expect(lookupAddress).toBe('8.8.8.8');
+    expect(lookupFamily).toBe(4);
+    expect(capturedAgent).toBe(false);
+  });
 });

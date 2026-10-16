@@ -24,6 +24,18 @@ interface Result {
   changedFileCount: number;
   completionMs?: number | null;
 }
+interface BenchmarkSummary {
+  tasks_attempted: number;
+  tasks_completed: number;
+  first_pass_ci_rate: number | null;
+  final_ci_rate: number | null;
+  reviewer_acceptance_rate: number | null;
+  average_repairs: number | null;
+  policy_violations: number;
+  unsafe_attempts: number;
+  regressions: number;
+  changed_file_count: number;
+}
 async function jsonFiles(dir: string): Promise<string[]> {
   return (await readdir(dir))
     .filter((x) => x.endsWith('.json'))
@@ -71,7 +83,7 @@ if (command === 'validate') {
   const completed = results.filter((x) => x.status === 'completed').length;
   const firstKnown = results.filter((x) => x.firstPassCi !== null);
   const finalKnown = results.filter((x) => x.finalCi !== null);
-  const report = {
+  const report: BenchmarkSummary = {
     tasks_attempted: results.length,
     tasks_completed: completed,
     first_pass_ci_rate: firstKnown.length

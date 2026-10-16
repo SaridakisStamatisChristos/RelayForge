@@ -183,8 +183,12 @@ async function defaultResolver(hostname: string): Promise<readonly ResolvedAddre
   });
 }
 
-function abortReason(signal: AbortSignal): unknown {
-  return signal.reason ?? new DOMException('Operation aborted', 'AbortError');
+function asError(value: unknown, fallbackMessage: string): Error {
+  return value instanceof Error ? value : new Error(fallbackMessage);
+}
+
+function abortReason(signal: AbortSignal): Error {
+  return asError(signal.reason, 'Operation aborted');
 }
 
 async function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -202,7 +206,7 @@ async function withAbortSignal<T>(promise: Promise<T>, signal: AbortSignal): Pro
       },
       (error: unknown) => {
         signal.removeEventListener('abort', onAbort);
-        reject(error);
+        reject(asError(error, 'Destination resolution failed'));
       },
     );
   });

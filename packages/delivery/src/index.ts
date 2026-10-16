@@ -177,7 +177,8 @@ async function defaultResolver(hostname: string): Promise<readonly ResolvedAddre
   const rows = await dnsLookup(hostname, { all: true, verbatim: true });
   return rows.map((row) => {
     const family = isIP(row.address);
-    if (family !== 4 && family !== 6) throw new Error('DNS resolver returned an invalid IP address');
+    if (family !== 4 && family !== 6)
+      throw new Error('DNS resolver returned an invalid IP address');
     return { address: row.address, family };
   });
 }

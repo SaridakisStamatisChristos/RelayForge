@@ -82,52 +82,55 @@ describe('SSRF protection', () => {
     );
   });
 
-  it('pins the HTTPS connection to the validated DNS answer and disables connection reuse', async () => {
-    let resolverCalls = 0;
-    const resolver = vi.fn(async () => {
-      resolverCalls += 1;
-      return resolverCalls === 1
-        ? [{ address: '8.8.8.8', family: 4 as const }]
-        : [{ address: '10.0.0.9', family: 4 as const }];
-    });
-
-    let lookupAddress: string | undefined;
-    let lookupFamily: number | undefined;
-    let capturedAgent: boolean | undefined;
-    const fakeRequest: OutboundRequest = {
-      once: () => fakeRequest,
-      end: () => undefined,
-    };
-    const requestFactory: HttpsRequestFactory = (_url, options, onResponse) => {
-      capturedAgent = options.agent as boolean | undefined;
-      if (!options.lookup) throw new Error('expected pinned lookup');
-      options.lookup('rebound.example', { all: false }, (error, address, family) => {
-        if (error) throw error;
-        if (typeof address !== 'string') throw new Error('expected one pinned address');
-        lookupAddress = address;
-        lookupFamily = family;
+  it(
+    'pins the HTTPS connection to the validated DNS answer and disables connection reuse',
+    async () => {
+      let resolverCalls = 0;
+      const resolver = vi.fn(async () => {
+        resolverCalls += 1;
+        return resolverCalls === 1
+          ? [{ address: '8.8.8.8', family: 4 as const }]
+          : [{ address: '10.0.0.9', family: 4 as const }];
       });
-      queueMicrotask(() =>
-        onResponse(
-          {
-            statusCode: 202,
-            resume() {
-              return this;
-            },
-          } as unknown as IncomingMessage,
-        ),
-      );
-      return fakeRequest;
-    };
 
-    const transport = new PinnedHttpsTransport({ resolver, requestFactory });
-    await expect(
-      transport.postJson(new URL('https://rebound.example/hook'), '{}', 1_000),
-    ).resolves.toBe(202);
+      let lookupAddress: string | undefined;
+      let lookupFamily: number | undefined;
+      let capturedAgent: boolean | undefined;
+      const fakeRequest: OutboundRequest = {
+        once: () => fakeRequest,
+        end: () => undefined,
+      };
+      const requestFactory: HttpsRequestFactory = (_url, options, onResponse) => {
+        capturedAgent = options.agent as boolean | undefined;
+        if (!options.lookup) throw new Error('expected pinned lookup');
+        options.lookup('rebound.example', { all: false }, (error, address, family) => {
+          if (error) throw error;
+          if (typeof address !== 'string') throw new Error('expected one pinned address');
+          lookupAddress = address;
+          lookupFamily = family;
+        });
+        queueMicrotask(() =>
+          onResponse(
+            {
+              statusCode: 202,
+              resume() {
+                return this;
+              },
+            } as unknown as IncomingMessage,
+          ),
+        );
+        return fakeRequest;
+      };
 
-    expect(resolver).toHaveBeenCalledOnce();
-    expect(lookupAddress).toBe('8.8.8.8');
-    expect(lookupFamily).toBe(4);
-    expect(capturedAgent).toBe(false);
-  });
+      const transport = new PinnedHttpsTransport({ resolver, requestFactory });
+      await expect(
+        transport.postJson(new URL('https://rebound.example/hook'), '{}', 1_000),
+      ).resolves.toBe(202);
+
+      expect(resolver).toHaveBeenCalledOnce();
+      expect(lookupAddress).toBe('8.8.8.8');
+      expect(lookupFamily).toBe(4);
+      expect(capturedAgent).toBe(false);
+    },
+  );
 });

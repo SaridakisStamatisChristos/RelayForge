@@ -9,8 +9,12 @@
     "finalCi",
     "repairs",
     "policyViolations",
+    "unsafeAttempts",
+    "forbiddenPathAttempts",
+    "testWeakeningAttempts",
     "regressions",
     "changedFileCount",
+    "completionMs",
     "evidence"
   ],
   "properties": {
@@ -44,6 +48,14 @@
       "type": "integer",
       "minimum": 0
     },
+    "forbiddenPathAttempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "testWeakeningAttempts": {
+      "type": "integer",
+      "minimum": 0
+    },
     "regressions": {
       "type": "integer",
       "minimum": 0
@@ -56,7 +68,11 @@
       "type": ["integer", "null"],
       "minimum": 0
     },
-    "tokenCost": {
+    "tokenCount": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "apiCostUsd": {
       "type": ["number", "null"],
       "minimum": 0
     },

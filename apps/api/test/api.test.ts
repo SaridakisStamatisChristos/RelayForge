@@ -121,6 +121,7 @@ const auth = { authorization: `Bearer ${token}` };
 describe('API', () => {
   it('keeps liveness public and protects API routes', async () => {
     expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/ready' })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/v1/events' })).statusCode).toBe(401);
   });
 
@@ -199,5 +200,31 @@ describe('API', () => {
       payload: { enabled: false },
     });
     expect(patched.json<DestinationRecord>().enabled).toBe(false);
+  });
+
+  it('exposes event and dead-letter replay through protected HTTP routes', async () => {
+    const eventReplay = await app.inject({
+      method: 'POST',
+      url: `/api/v1/events/${randomUUID()}/replay`,
+      headers: auth,
+    });
+    expect(eventReplay.statusCode).toBe(202);
+    expect(eventReplay.json<ReplayResult>().replayId).toMatch(/^[0-9a-f-]{36}$/u);
+
+    const deadLetters = await app.inject({
+      method: 'GET',
+      url: '/api/v1/dead-letters',
+      headers: auth,
+    });
+    expect(deadLetters.statusCode).toBe(200);
+    expect(deadLetters.json<Page<DeadLetterRecord>>().items).toEqual([]);
+
+    const deadLetterReplay = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dead-letters/${randomUUID()}/replay`,
+      headers: auth,
+    });
+    expect(deadLetterReplay.statusCode).toBe(202);
+    expect(deadLetterReplay.json<{ jobId: string }>().jobId).toMatch(/^[0-9a-f-]{36}$/u);
   });
 });

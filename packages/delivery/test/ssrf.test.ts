@@ -34,6 +34,16 @@ const blockedAddresses = [
   '3fff::1',
 ] as const;
 
+async function expectUnsafe(promise: Promise<unknown>): Promise<void> {
+  let thrown: unknown;
+  try {
+    await promise;
+  } catch (error) {
+    thrown = error;
+  }
+  expect(thrown).toBeInstanceOf(UnsafeDestinationError);
+}
+
 describe('SSRF protection', () => {
   it('allows representative public IPv4 and IPv6 addresses', () => {
     expect(isPublicIpAddress('8.8.8.8')).toBe(true);
@@ -50,18 +60,12 @@ describe('SSRF protection', () => {
 
   it('rejects localhost names and alternate IPv4 loopback forms', async () => {
     const resolver = vi.fn(async () => [{ address: '8.8.8.8', family: 4 as const }]);
-    await expect(resolvePublicDestinationAddress('localhost', resolver)).rejects.toBeInstanceOf(
-      UnsafeDestinationError,
-    );
-    await expect(
-      resolvePublicDestinationAddress('service.localhost', resolver),
-    ).rejects.toBeInstanceOf(UnsafeDestinationError);
+    await expectUnsafe(resolvePublicDestinationAddress('localhost', resolver));
+    await expectUnsafe(resolvePublicDestinationAddress('service.localhost', resolver));
 
     const normalized = assertSafeDestinationUrl('https://2130706433/hook');
     expect(normalized.hostname).toBe('127.0.0.1');
-    await expect(
-      resolvePublicDestinationAddress(normalized.hostname, resolver),
-    ).rejects.toBeInstanceOf(UnsafeDestinationError);
+    await expectUnsafe(resolvePublicDestinationAddress(normalized.hostname, resolver));
     expect(resolver).not.toHaveBeenCalled();
   });
 
@@ -70,18 +74,12 @@ describe('SSRF protection', () => {
       { address: '8.8.8.8', family: 4 as const },
       { address: '10.0.0.9', family: 4 as const },
     ]);
-    await expect(
-      resolvePublicDestinationAddress('mixed.example', resolver),
-    ).rejects.toBeInstanceOf(UnsafeDestinationError);
+    await expectUnsafe(resolvePublicDestinationAddress('mixed.example', resolver));
   });
 
   it('rejects metadata-style IPv4 and IPv6 destinations', async () => {
-    await expect(resolvePublicDestinationAddress('169.254.169.254')).rejects.toBeInstanceOf(
-      UnsafeDestinationError,
-    );
-    await expect(resolvePublicDestinationAddress('fd00:ec2::254')).rejects.toBeInstanceOf(
-      UnsafeDestinationError,
-    );
+    await expectUnsafe(resolvePublicDestinationAddress('169.254.169.254'));
+    await expectUnsafe(resolvePublicDestinationAddress('fd00:ec2::254'));
   });
 
   it('pins the validated DNS answer without a second resolution', async () => {
@@ -102,31 +100,32 @@ describe('SSRF protection', () => {
     };
     const requestFactory: HttpsRequestFactory = (_url, options, onResponse) => {
       capturedAgent = options.agent as boolean | undefined;
-      if (!options.lookup) throw new Error('expected pinned lookup');
-      options.lookup('rebound.example', { all: false }, (error, address, family) => {
+      const lookup = options.lookup;
+      if (!lookup) throw new Error('expected pinned lookup');
+      lookup('rebound.example', { all: false }, (error, address, family) => {
         if (error) throw error;
         if (typeof address !== 'string') throw new Error('expected one pinned address');
         lookupAddress = address;
         lookupFamily = family;
       });
-      queueMicrotask(() =>
-        onResponse(
-          {
-            statusCode: 202,
-            resume() {
-              return this;
-            },
-          } as unknown as IncomingMessage,
-        ),
-      );
+      const response = {
+        statusCode: 202,
+        resume() {
+          return this;
+        },
+      } as unknown as IncomingMessage;
+      onResponse(response);
       return fakeRequest;
     };
 
     const transport = new PinnedHttpsTransport({ resolver, requestFactory });
-    await expect(
-      transport.postJson(new URL('https://rebound.example/hook'), '{}', 1_000),
-    ).resolves.toBe(202);
+    const statusCode = await transport.postJson(
+      new URL('https://rebound.example/hook'),
+      '{}',
+      1_000,
+    );
 
+    expect(statusCode).toBe(202);
     expect(resolver).toHaveBeenCalledOnce();
     expect(lookupAddress).toBe('8.8.8.8');
     expect(lookupFamily).toBe(4);

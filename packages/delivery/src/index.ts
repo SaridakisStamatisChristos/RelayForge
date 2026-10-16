@@ -23,7 +23,10 @@ export function classifyStatus(statusCode: number): DeliveryOutcome {
   return 'permanent_failure';
 }
 
-export function classifyNetworkError(error: unknown): { outcome: 'retryable_failure'; errorCode: string } {
+export function classifyNetworkError(error: unknown): {
+  outcome: 'retryable_failure';
+  errorCode: string;
+} {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return { outcome: 'retryable_failure', errorCode: 'TIMEOUT' };
   }

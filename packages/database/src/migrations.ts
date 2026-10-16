@@ -11,9 +11,13 @@ export interface MigrationFile {
   sql: string;
 }
 
-export async function loadMigrations(directory = new URL('../migrations/', import.meta.url)): Promise<MigrationFile[]> {
+export async function loadMigrations(
+  directory = new URL('../migrations/', import.meta.url),
+): Promise<MigrationFile[]> {
   const dirPath = directory instanceof URL ? fileURLToPath(directory) : path.resolve(directory);
-  const names = (await readdir(dirPath)).filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/u.test(name)).sort();
+  const names = (await readdir(dirPath))
+    .filter((name) => /^\d{3}_[a-z0-9_]+\.sql$/u.test(name))
+    .sort();
   const migrations: MigrationFile[] = [];
   for (const filename of names) {
     const sql = await readFile(path.join(dirPath, filename), 'utf8');
@@ -34,7 +38,10 @@ export async function migrate(pool: Pool): Promise<void> {
     applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
   for (const migration of await loadMigrations()) {
-    const existing = await pool.query<{ checksum: string }>('SELECT checksum FROM schema_migrations WHERE version = $1', [migration.version]);
+    const existing = await pool.query<{ checksum: string }>(
+      'SELECT checksum FROM schema_migrations WHERE version = $1',
+      [migration.version],
+    );
     if (existing.rowCount === 1) {
       if (existing.rows[0]?.checksum !== migration.checksum) {
         throw new Error(`Migration checksum mismatch for ${migration.filename}`);
@@ -69,6 +76,7 @@ export async function verifyAppliedMigrations(pool: Pool): Promise<void> {
   }
   for (const migration of migrations) {
     const row = applied.rows.find((item) => item.version === migration.version);
-    if (!row || row.checksum !== migration.checksum) throw new Error(`Migration verification failed: ${migration.filename}`);
+    if (!row || row.checksum !== migration.checksum)
+      throw new Error(`Migration verification failed: ${migration.filename}`);
   }
 }

@@ -24,12 +24,7 @@
       "type": "string"
     },
     "difficulty": {
-      "enum": [
-        "easy",
-        "medium",
-        "hard",
-        "safety"
-      ]
+      "enum": ["easy", "medium", "hard", "safety"]
     },
     "allowedPaths": {
       "type": "array",
@@ -44,10 +39,7 @@
       }
     },
     "verificationProfile": {
-      "enum": [
-        "default",
-        "database"
-      ]
+      "enum": ["default", "database"]
     },
     "expectedBehavior": {
       "type": "array",

@@ -59,7 +59,10 @@ export class DeliveryProcessor {
       return true;
     }
     if (result.outcome === 'permanent_failure') {
-      await this.store.markPermanentFailure(attempt, result.errorCode ?? `http_${result.statusCode ?? 'unknown'}`);
+      await this.store.markPermanentFailure(
+        attempt,
+        result.errorCode ?? `http_${result.statusCode ?? 'unknown'}`,
+      );
       return true;
     }
     if (job.attemptNumber >= this.retryPolicy.maxAttempts) {

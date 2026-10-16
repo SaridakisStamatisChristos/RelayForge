@@ -154,10 +154,17 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
            VALUES ($1, $2, $3, $4::jsonb, $5, 'accepted')
            ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
            RETURNING *`,
-          [id, input.type, input.source, JSON.stringify(input.payload), input.idempotencyKey ?? null],
+          [
+            id,
+            input.type,
+            input.source,
+            JSON.stringify(input.payload),
+            input.idempotencyKey ?? null,
+          ],
         );
         if (inserted.rowCount === 0) {
-          if (!input.idempotencyKey) throw new DatabaseError('Event insert unexpectedly returned no row');
+          if (!input.idempotencyKey)
+            throw new DatabaseError('Event insert unexpectedly returned no row');
           const existing = await client.query<EventRow & { matches: boolean }>(
             `SELECT *, (type = $2 AND source = $3 AND payload = $4::jsonb) AS matches
              FROM events WHERE idempotency_key = $1`,
@@ -165,7 +172,8 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
           );
           const row = existing.rows[0];
           if (!row) throw new DatabaseError('Idempotency conflict row could not be loaded');
-          if (!row.matches) throw new ConflictError('Idempotency key was already used for a different event');
+          if (!row.matches)
+            throw new ConflictError('Idempotency key was already used for a different event');
           return { event: eventFromRow(row), created: false, jobsCreated: 0 };
         }
 
@@ -185,7 +193,9 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
           );
         }
         if (destinations.rowCount > 0) await refreshEventStatus(client, row.id);
-        const refreshed = await client.query<EventRow>('SELECT * FROM events WHERE id = $1', [row.id]);
+        const refreshed = await client.query<EventRow>('SELECT * FROM events WHERE id = $1', [
+          row.id,
+        ]);
         return {
           event: eventFromRow(refreshed.rows[0] ?? row),
           created: true,
@@ -276,7 +286,13 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
     const result = await this.pool.query<DestinationRow>(
       `INSERT INTO destinations(id, name, url, enabled, event_types)
        VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *`,
-      [randomUUID(), input.name, input.url, input.enabled, input.eventTypes ? JSON.stringify(input.eventTypes) : null],
+      [
+        randomUUID(),
+        input.name,
+        input.url,
+        input.enabled,
+        input.eventTypes ? JSON.stringify(input.eventTypes) : null,
+      ],
     );
     const row = result.rows[0];
     if (!row) throw new DatabaseError('Destination insert returned no row');
@@ -284,7 +300,9 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
   }
 
   async listDestinations(): Promise<DestinationRecord[]> {
-    const result = await this.pool.query<DestinationRow>('SELECT * FROM destinations ORDER BY created_at, id');
+    const result = await this.pool.query<DestinationRow>(
+      'SELECT * FROM destinations ORDER BY created_at, id',
+    );
     return result.rows.map(destinationFromRow);
   }
 
@@ -300,7 +318,9 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
 
   async replayEvent(id: string): Promise<ReplayResult> {
     return inTransaction(this.pool, async (client) => {
-      const event = await client.query<EventRow>('SELECT * FROM events WHERE id = $1 FOR UPDATE', [id]);
+      const event = await client.query<EventRow>('SELECT * FROM events WHERE id = $1 FOR UPDATE', [
+        id,
+      ]);
       const row = event.rows[0];
       if (!row) throw new NotFoundError('Event not found');
       const active = await client.query<{ count: number }>(
@@ -508,7 +528,14 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
       await client.query(
         `INSERT INTO dead_letters(id, delivery_job_id, event_id, destination_id, reason, attempts)
          VALUES ($1,$2,$3,$4,$5,$6)`,
-        [randomUUID(), attempt.jobId, attempt.eventId, attempt.destinationId, reason, attempt.attemptNumber],
+        [
+          randomUUID(),
+          attempt.jobId,
+          attempt.eventId,
+          attempt.destinationId,
+          reason,
+          attempt.attemptNumber,
+        ],
       );
       await refreshEventStatus(client, attempt.eventId);
     });

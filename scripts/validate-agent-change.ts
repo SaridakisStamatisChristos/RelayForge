@@ -1,13 +1,24 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { assertNoSymlinkEscape, evaluateChange, type AgentPolicy, type Change } from './agent-policy.js';
+import {
+  assertNoSymlinkEscape,
+  evaluateChange,
+  type AgentPolicy,
+  type Change,
+} from './agent-policy.js';
 
 const manifestPath = process.argv[2];
-if (!manifestPath) throw new Error('Usage: tsx scripts/validate-agent-change.ts <change-manifest.json>');
+if (!manifestPath)
+  throw new Error('Usage: tsx scripts/validate-agent-change.ts <change-manifest.json>');
 const root = process.cwd();
-const policy = JSON.parse(await readFile(path.join(root, '.agent/policy.yaml'), 'utf8')) as AgentPolicy;
-const payload = JSON.parse(await readFile(path.resolve(manifestPath), 'utf8')) as { changes?: unknown };
-if (!Array.isArray(payload.changes)) throw new Error('change manifest must contain a changes array');
+const policy = JSON.parse(
+  await readFile(path.join(root, '.agent/policy.yaml'), 'utf8'),
+) as AgentPolicy;
+const payload = JSON.parse(await readFile(path.resolve(manifestPath), 'utf8')) as {
+  changes?: unknown;
+};
+if (!Array.isArray(payload.changes))
+  throw new Error('change manifest must contain a changes array');
 let reviewRequired = false;
 for (const raw of payload.changes) {
   if (typeof raw !== 'object' || raw === null) throw new Error('invalid change entry');

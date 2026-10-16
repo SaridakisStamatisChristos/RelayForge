@@ -13,11 +13,7 @@ const policy = { maxAttempts: 5, baseDelayMs: 1_000, maxDelayMs: 60_000 };
 describe('retry policy', () => {
   it('is deterministic and bounded', () => {
     expect([1, 2, 3, 4, 5].map((attempt) => calculateRetryDelayMs(attempt, policy))).toEqual([
-      1_000,
-      2_000,
-      4_000,
-      8_000,
-      16_000,
+      1_000, 2_000, 4_000, 8_000, 16_000,
     ]);
     expect(calculateRetryDelayMs(20, policy)).toBe(60_000);
   });

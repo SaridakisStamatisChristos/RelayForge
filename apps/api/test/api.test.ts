@@ -26,14 +26,21 @@ class MemoryStore implements ApiStore {
   async ping(): Promise<void> {}
   async createEvent(input: CreateEventInput): Promise<CreateEventResult> {
     if (input.idempotencyKey) {
-      const existing = [...this.events.values()].find((event) => event.idempotencyKey === input.idempotencyKey);
+      const existing = [...this.events.values()].find(
+        (event) => event.idempotencyKey === input.idempotencyKey,
+      );
       if (existing) return { event: existing, created: false, jobsCreated: 0 };
     }
     const now = new Date();
     const event: EventRecord = {
-      id: randomUUID(), type: input.type, source: input.source, payload: input.payload,
+      id: randomUUID(),
+      type: input.type,
+      source: input.source,
+      payload: input.payload,
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
-      status: 'accepted', createdAt: now, updatedAt: now,
+      status: 'accepted',
+      createdAt: now,
+      updatedAt: now,
     };
     this.events.set(event.id, event);
     return { event, created: true, jobsCreated: 0 };
@@ -41,24 +48,48 @@ class MemoryStore implements ApiStore {
   async getEvent(id: string): Promise<EventDetail> {
     const event = this.events.get(id);
     if (!event) throw new NotFoundError('Event not found');
-    return { event, delivery: { total: 0, pending: 0, processing: 0, retryScheduled: 0, delivered: 0, failed: 0, deadLettered: 0, attemptCount: 0 } };
+    return {
+      event,
+      delivery: {
+        total: 0,
+        pending: 0,
+        processing: 0,
+        retryScheduled: 0,
+        delivered: 0,
+        failed: 0,
+        deadLettered: 0,
+        attemptCount: 0,
+      },
+    };
   }
   async listEvents(query: EventListQuery): Promise<Page<EventRecord>> {
-    const items = [...this.events.values()].filter((event) =>
-      (!query.type || event.type === query.type) && (!query.source || event.source === query.source) && (!query.status || event.status === query.status),
-    ).slice(0, query.limit);
+    const items = [...this.events.values()]
+      .filter(
+        (event) =>
+          (!query.type || event.type === query.type) &&
+          (!query.source || event.source === query.source) &&
+          (!query.status || event.status === query.status),
+      )
+      .slice(0, query.limit);
     return { items };
   }
   async createDestination(input: CreateDestinationInput): Promise<DestinationRecord> {
     const now = new Date();
     const value: DestinationRecord = {
-      id: randomUUID(), name: input.name, url: input.url, enabled: input.enabled,
-      ...(input.eventTypes ? { eventTypes: input.eventTypes } : {}), createdAt: now, updatedAt: now,
+      id: randomUUID(),
+      name: input.name,
+      url: input.url,
+      enabled: input.enabled,
+      ...(input.eventTypes ? { eventTypes: input.eventTypes } : {}),
+      createdAt: now,
+      updatedAt: now,
     };
     this.destinations.set(value.id, value);
     return value;
   }
-  async listDestinations(): Promise<DestinationRecord[]> { return [...this.destinations.values()]; }
+  async listDestinations(): Promise<DestinationRecord[]> {
+    return [...this.destinations.values()];
+  }
   async patchDestination(id: string, input: PatchDestinationInput): Promise<DestinationRecord> {
     const existing = this.destinations.get(id);
     if (!existing) throw new NotFoundError('Destination not found');
@@ -66,16 +97,25 @@ class MemoryStore implements ApiStore {
     this.destinations.set(id, updated);
     return updated;
   }
-  async replayEvent(_id: string): Promise<ReplayResult> { return { replayId: randomUUID(), jobsCreated: 0 }; }
-  async listDeadLetters(_query: DeadLetterListQuery): Promise<Page<DeadLetterRecord>> { return { items: [] }; }
-  async replayDeadLetter(_id: string): Promise<{ jobId: string }> { return { jobId: randomUUID() }; }
+  async replayEvent(_id: string): Promise<ReplayResult> {
+    return { replayId: randomUUID(), jobsCreated: 0 };
+  }
+  async listDeadLetters(_query: DeadLetterListQuery): Promise<Page<DeadLetterRecord>> {
+    return { items: [] };
+  }
+  async replayDeadLetter(_id: string): Promise<{ jobId: string }> {
+    return { jobId: randomUUID() };
+  }
 }
 
 const token = 'test-token-12345';
 let store: MemoryStore;
 let app: ReturnType<typeof buildServer>;
 
-beforeEach(() => { store = new MemoryStore(); app = buildServer({ store, authToken: token }); });
+beforeEach(() => {
+  store = new MemoryStore();
+  app = buildServer({ store, authToken: token });
+});
 afterEach(async () => app.close());
 const auth = { authorization: `Bearer ${token}` };
 
@@ -86,17 +126,35 @@ describe('API', () => {
   });
 
   it('creates, filters, and retrieves events', async () => {
-    const created = await app.inject({ method: 'POST', url: '/api/v1/events', headers: { ...auth, 'idempotency-key': 'evt-1' }, payload: { type: 'invoice.paid', source: 'billing', payload: { id: 1 } } });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/events',
+      headers: { ...auth, 'idempotency-key': 'evt-1' },
+      payload: { type: 'invoice.paid', source: 'billing', payload: { id: 1 } },
+    });
     expect(created.statusCode).toBe(202);
     const body = created.json<{ event: EventRecord }>();
-    const detail = await app.inject({ method: 'GET', url: `/api/v1/events/${body.event.id}`, headers: auth });
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/v1/events/${body.event.id}`,
+      headers: auth,
+    });
     expect(detail.statusCode).toBe(200);
-    const list = await app.inject({ method: 'GET', url: '/api/v1/events?source=billing', headers: auth });
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/v1/events?source=billing',
+      headers: auth,
+    });
     expect(list.json<{ items: EventRecord[] }>().items).toHaveLength(1);
   });
 
   it('returns the existing event for duplicate idempotency keys', async () => {
-    const request = { method: 'POST' as const, url: '/api/v1/events', headers: { ...auth, 'idempotency-key': 'evt-same' }, payload: { type: 'x', source: 's', payload: {} } };
+    const request = {
+      method: 'POST' as const,
+      url: '/api/v1/events',
+      headers: { ...auth, 'idempotency-key': 'evt-same' },
+      payload: { type: 'x', source: 's', payload: {} },
+    };
     const first = await app.inject(request);
     const second = await app.inject(request);
     expect(first.statusCode).toBe(202);
@@ -105,14 +163,42 @@ describe('API', () => {
   });
 
   it('rejects malformed events and non-https destinations', async () => {
-    expect((await app.inject({ method: 'POST', url: '/api/v1/events', headers: auth, payload: { type: '', source: 'x', payload: {} } })).statusCode).toBe(400);
-    expect((await app.inject({ method: 'POST', url: '/api/v1/destinations', headers: auth, payload: { name: 'd', url: 'http://example.com', enabled: true } })).statusCode).toBe(400);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/events',
+          headers: auth,
+          payload: { type: '', source: 'x', payload: {} },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/destinations',
+          headers: auth,
+          payload: { name: 'd', url: 'http://example.com', enabled: true },
+        })
+      ).statusCode,
+    ).toBe(400);
   });
 
   it('creates and disables destinations', async () => {
-    const created = await app.inject({ method: 'POST', url: '/api/v1/destinations', headers: auth, payload: { name: 'd', url: 'https://example.com', enabled: true } });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/destinations',
+      headers: auth,
+      payload: { name: 'd', url: 'https://example.com', enabled: true },
+    });
     const destination = created.json<DestinationRecord>();
-    const patched = await app.inject({ method: 'PATCH', url: `/api/v1/destinations/${destination.id}`, headers: auth, payload: { enabled: false } });
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/destinations/${destination.id}`,
+      headers: auth,
+      payload: { enabled: false },
+    });
     expect(patched.json<DestinationRecord>().enabled).toBe(false);
   });
 });

@@ -49,7 +49,9 @@ describe('delivery classification', () => {
   });
 
   it('treats network failures as retryable', async () => {
-    const client = new HttpDeliveryClient({ fetchFn: vi.fn(async () => Promise.reject(new Error('boom'))) });
+    const client = new HttpDeliveryClient({
+      fetchFn: vi.fn(async () => Promise.reject(new Error('boom'))),
+    });
     const result = await client.deliver(event, destination);
     expect(result.outcome).toBe('retryable_failure');
     expect(result.errorCode).toBe('NETWORK_ERROR');

@@ -193,9 +193,9 @@ interface CursorPayload {
 }
 
 export function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id } satisfies CursorPayload)).toString(
-    'base64url',
-  );
+  return Buffer.from(
+    JSON.stringify({ createdAt: createdAt.toISOString(), id } satisfies CursorPayload),
+  ).toString('base64url');
 }
 
 export function decodeCursor(cursor: string): { createdAt: Date; id: string } {
@@ -217,12 +217,22 @@ export function decodeCursor(cursor: string): { createdAt: Date; id: string } {
   }
 }
 
-export function eventMatchesDestination(eventType: string, destination: DestinationRecord): boolean {
-  return destination.enabled &&
-    (destination.eventTypes === undefined || destination.eventTypes.length === 0 || destination.eventTypes.includes(eventType));
+export function eventMatchesDestination(
+  eventType: string,
+  destination: DestinationRecord,
+): boolean {
+  return (
+    destination.enabled &&
+    (destination.eventTypes === undefined ||
+      destination.eventTypes.length === 0 ||
+      destination.eventTypes.includes(eventType))
+  );
 }
 
-export function transformPayload(event: EventRecord, destination: DestinationRecord): Record<string, unknown> {
+export function transformPayload(
+  event: EventRecord,
+  destination: DestinationRecord,
+): Record<string, unknown> {
   return {
     id: event.id,
     type: event.type,

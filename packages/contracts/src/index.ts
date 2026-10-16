@@ -16,11 +16,7 @@ export const eventStatusSchema = z.enum([
 ]);
 export type EventStatus = z.infer<typeof eventStatusSchema>;
 
-export const deliveryOutcomeSchema = z.enum([
-  'success',
-  'retryable_failure',
-  'permanent_failure',
-]);
+export const deliveryOutcomeSchema = z.enum(['success', 'retryable_failure', 'permanent_failure']);
 export type DeliveryOutcome = z.infer<typeof deliveryOutcomeSchema>;
 
 export const deliveryJobStateSchema = z.enum([

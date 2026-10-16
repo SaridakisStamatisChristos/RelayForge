@@ -1,31 +1,34 @@
 {
-  "version": 1,
-  "safe": [
-    "apps/worker/**",
-    "packages/core/**",
-    "packages/contracts/**",
-    "packages/delivery/**",
-    "packages/observability/**",
-    "tests/**",
-    "docs/**",
-    "benchmarks/**"
-  ],
-  "review_required": [
-    "packages/database/migrations/**",
-    "packages/config/**",
-    ".github/workflows/**",
-    "package.json",
-    "pnpm-lock.yaml",
-    "turbo.json",
-    "tsconfig.base.json"
-  ],
-  "forbidden": [
-    ".agent/**",
-    ".github/CODEOWNERS",
-    "AGENTS.md",
-    "apps/api/src/auth/**",
-    "packages/security/**",
-    "scripts/check-boundaries.ts",
-    "scripts/verify-migrations.ts"
-  ]
+  'version': 1,
+  'safe':
+    [
+      'apps/worker/**',
+      'packages/core/**',
+      'packages/contracts/**',
+      'packages/delivery/**',
+      'packages/observability/**',
+      'tests/**',
+      'docs/**',
+      'benchmarks/**',
+    ],
+  'review_required':
+    [
+      'packages/database/migrations/**',
+      'packages/config/**',
+      '.github/workflows/**',
+      'package.json',
+      'pnpm-lock.yaml',
+      'turbo.json',
+      'tsconfig.base.json',
+    ],
+  'forbidden':
+    [
+      '.agent/**',
+      '.github/CODEOWNERS',
+      'AGENTS.md',
+      'apps/api/src/auth/**',
+      'packages/security/**',
+      'scripts/check-boundaries.ts',
+      'scripts/verify-migrations.ts',
+    ],
 }

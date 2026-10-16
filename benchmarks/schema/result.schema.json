@@ -21,31 +21,16 @@
       "type": "string"
     },
     "status": {
-      "enum": [
-        "completed",
-        "failed",
-        "blocked",
-        "policy_rejected",
-        "human_review_required"
-      ]
+      "enum": ["completed", "failed", "blocked", "policy_rejected", "human_review_required"]
     },
     "firstPassCi": {
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": ["boolean", "null"]
     },
     "finalCi": {
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": ["boolean", "null"]
     },
     "reviewerAccepted": {
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": ["boolean", "null"]
     },
     "repairs": {
       "type": "integer",
@@ -68,17 +53,11 @@
       "minimum": 0
     },
     "completionMs": {
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": ["integer", "null"],
       "minimum": 0
     },
     "tokenCost": {
-      "type": [
-        "number",
-        "null"
-      ],
+      "type": ["number", "null"],
       "minimum": 0
     },
     "evidence": {

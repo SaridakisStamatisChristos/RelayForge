@@ -31,15 +31,21 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
-      void reply.status(error.httpStatus).send({ error: { code: error.code, message: error.message } });
+      void reply
+        .status(error.httpStatus)
+        .send({ error: { code: error.code, message: error.message } });
       return;
     }
     if (error instanceof ZodError) {
-      void reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request' } });
+      void reply
+        .status(400)
+        .send({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request' } });
       return;
     }
     request.log.error({ err: error }, 'Unhandled request error');
-    void reply.status(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+    void reply
+      .status(500)
+      .send({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
   });
 
   app.get('/health', async () => ({ status: 'ok' }));
@@ -59,7 +65,8 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       api.post('/events', async (request, reply) => {
         const input = createEventSchema.parse(request.body);
         const rawHeader = request.headers['idempotency-key'];
-        const header = rawHeader === undefined ? undefined : idempotencyHeaderSchema.parse(rawHeader);
+        const header =
+          rawHeader === undefined ? undefined : idempotencyHeaderSchema.parse(rawHeader);
         if (header && input.idempotencyKey && header !== input.idempotencyKey) {
           throw new ValidationError('Header and body idempotency keys must match');
         }
@@ -68,7 +75,9 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
         return reply.status(result.created ? 202 : 200).send(result);
       });
 
-      api.get('/events', async (request) => options.store.listEvents(eventListQuerySchema.parse(request.query)));
+      api.get('/events', async (request) =>
+        options.store.listEvents(eventListQuerySchema.parse(request.query)),
+      );
 
       api.get('/events/:id', async (request) => {
         const params = request.params as { id?: unknown };
@@ -82,7 +91,9 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
       });
 
       api.post('/destinations', async (request, reply) => {
-        const created = await options.store.createDestination(createDestinationSchema.parse(request.body));
+        const created = await options.store.createDestination(
+          createDestinationSchema.parse(request.body),
+        );
         return reply.status(201).send(created);
       });
 
@@ -90,7 +101,10 @@ export function buildServer(options: BuildServerOptions): FastifyInstance {
 
       api.patch('/destinations/:id', async (request) => {
         const params = request.params as { id?: unknown };
-        return options.store.patchDestination(parseId(params.id), patchDestinationSchema.parse(request.body));
+        return options.store.patchDestination(
+          parseId(params.id),
+          patchDestinationSchema.parse(request.body),
+        );
       });
 
       api.get('/dead-letters', async (request) =>

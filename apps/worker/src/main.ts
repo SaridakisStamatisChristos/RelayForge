@@ -3,7 +3,8 @@ import { createPool, PostgresRelayStore } from '@relayforge/database';
 import { HttpDeliveryClient } from '@relayforge/delivery';
 import { DeliveryProcessor } from './processor/processor.js';
 
-const sleep = async (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = async (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -15,8 +16,12 @@ async function main(): Promise<void> {
     maxDelayMs: config.DELIVERY_MAX_DELAY_MS,
   });
   let stopping = false;
-  process.once('SIGTERM', () => { stopping = true; });
-  process.once('SIGINT', () => { stopping = true; });
+  process.once('SIGTERM', () => {
+    stopping = true;
+  });
+  process.once('SIGINT', () => {
+    stopping = true;
+  });
 
   try {
     while (!stopping) {
@@ -24,7 +29,13 @@ async function main(): Promise<void> {
         const processed = await processor.processNext();
         if (!processed) await sleep(config.WORKER_POLL_INTERVAL_MS);
       } catch (error) {
-        console.error(JSON.stringify({ level: 'error', message: 'worker_iteration_failed', error: error instanceof Error ? error.message : 'unknown' }));
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            message: 'worker_iteration_failed',
+            error: error instanceof Error ? error.message : 'unknown',
+          }),
+        );
         await sleep(config.WORKER_POLL_INTERVAL_MS);
       }
     }

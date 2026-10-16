@@ -3,16 +3,22 @@ import { createDestinationSchema, createEventSchema, eventListQuerySchema } from
 
 describe('contracts', () => {
   it('rejects blank event type and non-JSON payloads', () => {
-    expect(createEventSchema.safeParse({ type: ' ', source: 'x', payload: {} }).success).toBe(false);
-    expect(createEventSchema.safeParse({ type: 'x', source: 'x', payload: BigInt(1) }).success).toBe(false);
+    expect(createEventSchema.safeParse({ type: ' ', source: 'x', payload: {} }).success).toBe(
+      false,
+    );
+    expect(
+      createEventSchema.safeParse({ type: 'x', source: 'x', payload: BigInt(1) }).success,
+    ).toBe(false);
   });
 
   it('requires https destinations', () => {
     expect(
-      createDestinationSchema.safeParse({ name: 'x', url: 'http://example.com', enabled: true }).success,
+      createDestinationSchema.safeParse({ name: 'x', url: 'http://example.com', enabled: true })
+        .success,
     ).toBe(false);
     expect(
-      createDestinationSchema.safeParse({ name: 'x', url: 'https://example.com', enabled: true }).success,
+      createDestinationSchema.safeParse({ name: 'x', url: 'https://example.com', enabled: true })
+        .success,
     ).toBe(true);
   });
 

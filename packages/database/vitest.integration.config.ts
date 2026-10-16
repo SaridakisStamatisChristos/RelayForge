@@ -1,2 +1,4 @@
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { include: ['test/**/*.integration.test.ts'], sequence: { concurrent: false } } });
+export default defineConfig({
+  test: { include: ['test/**/*.integration.test.ts'], sequence: { concurrent: false } },
+});

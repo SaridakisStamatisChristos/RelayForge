@@ -17,13 +17,13 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
-      '@typescript-eslint/require-await': 'off'
-    }
+      '@typescript-eslint/require-await': 'off',
+    },
   },
   {
     files: ['**/*.test.ts'],
     rules: {
-      '@typescript-eslint/no-non-null-assertion': 'off'
-    }
-  }
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
 );

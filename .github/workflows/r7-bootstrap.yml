@@ -1,0 +1,58 @@
+name: R7 Bootstrap Verification
+
+on:
+  push:
+    branches: [ucs-r7/zero-to-hero]
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: relayforge
+          POSTGRES_PASSWORD: relayforge_dev
+          POSTGRES_DB: relayforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relayforge -d relayforge"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://relayforge:relayforge_dev@localhost:5432/relayforge
+      API_AUTH_TOKEN: integration-test-token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install and generate lockfile
+        run: pnpm install --no-frozen-lockfile
+      - name: Format deterministic sources
+        run: pnpm format
+      - name: Commit lockfile and formatting; remove bootstrap workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/r7-bootstrap.yml
+          git add -A
+          git commit -m "chore: generate lockfile and format R7 baseline"
+          git push origin HEAD:ucs-r7/zero-to-hero
+      - name: Verify static, unit, boundary, secret, and build gates
+        run: pnpm verify
+      - name: Apply migrations
+        run: pnpm db:migrate
+      - name: Verify applied migrations
+        run: pnpm verify:migrations
+      - name: Run PostgreSQL integration tests
+        run: pnpm test:integration

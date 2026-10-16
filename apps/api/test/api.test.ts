@@ -22,7 +22,10 @@ import { buildServer } from '../src/server.js';
 class MemoryStore implements ApiStore {
   readonly events = new Map<string, EventRecord>();
   readonly destinations = new Map<string, DestinationRecord>();
-  async ping(): Promise<void> {}
+  ready = true;
+  async ping(): Promise<void> {
+    if (!this.ready) throw new Error('dependency unavailable');
+  }
   async createEvent(input: CreateEventInput): Promise<CreateEventResult> {
     if (input.idempotencyKey) {
       const existing = [...this.events.values()].find(
@@ -123,6 +126,12 @@ describe('API', () => {
     expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/ready' })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/v1/events' })).statusCode).toBe(401);
+  });
+
+  it('keeps liveness healthy while readiness fails when a required dependency is unavailable', async () => {
+    store.ready = false;
+    expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/ready' })).statusCode).toBe(503);
   });
 
   it('creates, filters, and retrieves events', async () => {

@@ -1,0 +1,11 @@
+{
+  "taskId": "RF-001",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Add source filtering to GET /api/v1/events while preserving stable pagination and existing type/status filters. This benchmark contract contains no solution patch.",
+  "difficulty": "easy",
+  "allowedPaths": ["apps/api/**", "packages/contracts/**", "packages/core/**", "packages/database/**"],
+  "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
+  "verificationProfile": "database",
+  "expectedBehavior": ["source filter returns only matching events", "pagination remains stable", "existing filters remain compatible"],
+  "evaluatorRef": "held-out:RF-001"
+}

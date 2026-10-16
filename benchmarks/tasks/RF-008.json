@@ -1,0 +1,11 @@
+{
+  "taskId": "RF-008",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Prevent two workers from claiming and delivering the same due delivery job. The guarantee must rely on a database concurrency primitive rather than an in-memory mutex.",
+  "difficulty": "hard",
+  "allowedPaths": ["packages/database/**", "apps/worker/**", "packages/core/**"],
+  "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
+  "verificationProfile": "database",
+  "expectedBehavior": ["one job is claimed by at most one worker", "other workers can claim different due jobs", "claim survives process-level concurrency"],
+  "evaluatorRef": "held-out:RF-008"
+}

@@ -1,0 +1,11 @@
+{
+  "taskId": "RF-004",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Implement deterministic bounded exponential retry backoff using the configured base delay and maximum delay. Tests must not sleep in real time.",
+  "difficulty": "medium",
+  "allowedPaths": ["packages/core/**", "apps/worker/**", "packages/config/**"],
+  "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
+  "verificationProfile": "default",
+  "expectedBehavior": ["delay grows exponentially", "delay is capped", "retry timing is deterministically testable"],
+  "evaluatorRef": "held-out:RF-004"
+}

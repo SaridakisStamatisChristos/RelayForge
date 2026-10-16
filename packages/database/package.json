@@ -13,7 +13,7 @@
     "build": "tsc -b",
     "lint": "eslint src test --max-warnings=0",
     "typecheck": "tsc -b",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --exclude 'test/**/*.integration.test.ts' --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "migrate": "tsx src/migrate.ts",
     "migrate:verify": "tsx src/verify-migrations.ts"

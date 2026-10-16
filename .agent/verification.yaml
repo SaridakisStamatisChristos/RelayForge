@@ -3,7 +3,13 @@
   'profiles':
     {
       'default':
-        ['pnpm lint', 'pnpm typecheck', 'pnpm check:boundaries', 'pnpm test', 'pnpm build'],
+        [
+          'pnpm lint',
+          'pnpm typecheck',
+          'pnpm check:boundaries',
+          'pnpm test',
+          'pnpm build && find apps packages -type d -name dist -prune -exec rm -rf {} +',
+        ],
       'database':
         [
           'pnpm lint',
@@ -12,7 +18,7 @@
           'pnpm verify:migrations',
           'pnpm test',
           'pnpm test:integration',
-          'pnpm build',
+          'pnpm build && find apps packages -type d -name dist -prune -exec rm -rf {} +',
         ],
     },
 }

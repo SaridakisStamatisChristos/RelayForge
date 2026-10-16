@@ -3,6 +3,7 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Add source filtering to GET /api/v1/events while preserving stable pagination and existing type/status filters. This benchmark contract contains no solution patch.",
   "difficulty": "easy",
+  "provenance": "simulated",
   "allowedPaths": [
     "apps/api/**",
     "packages/contracts/**",

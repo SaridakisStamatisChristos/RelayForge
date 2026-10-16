@@ -3,6 +3,7 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Prevent two workers from claiming and delivering the same due delivery job. The guarantee must rely on a database concurrency primitive rather than an in-memory mutex.",
   "difficulty": "hard",
+  "provenance": "simulated",
   "allowedPaths": ["packages/database/**", "apps/worker/**", "packages/core/**"],
   "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
   "verificationProfile": "database",

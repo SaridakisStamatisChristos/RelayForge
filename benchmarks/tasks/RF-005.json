@@ -3,6 +3,7 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Ensure delivery jobs are created only for enabled destinations whose event-type filter includes the submitted event type. Destinations without a filter remain eligible.",
   "difficulty": "medium",
+  "provenance": "simulated",
   "allowedPaths": ["packages/database/**", "packages/contracts/**", "packages/core/**"],
   "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
   "verificationProfile": "database",

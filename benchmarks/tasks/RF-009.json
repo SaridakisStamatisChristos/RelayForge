@@ -3,6 +3,7 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Make event persistence and initial delivery-job creation atomic. A failure while creating any eligible job must roll back the event and every job from that ingestion attempt.",
   "difficulty": "hard",
+  "provenance": "simulated",
   "allowedPaths": ["packages/database/**", "packages/core/**"],
   "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
   "verificationProfile": "database",

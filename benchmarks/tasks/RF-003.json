@@ -3,6 +3,7 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Implement stable cursor pagination for event listing. Cursors must remain valid under equal timestamps and must not duplicate or skip rows across pages.",
   "difficulty": "medium",
+  "provenance": "simulated",
   "allowedPaths": [
     "packages/core/**",
     "packages/database/**",

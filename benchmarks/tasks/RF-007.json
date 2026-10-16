@@ -3,6 +3,7 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Implement database-enforced idempotent event ingestion. Sequential and concurrent submissions using one idempotency key must resolve to one event, while reusing the key for different event content must conflict.",
   "difficulty": "hard",
+  "provenance": "simulated",
   "allowedPaths": [
     "packages/database/**",
     "packages/core/**",

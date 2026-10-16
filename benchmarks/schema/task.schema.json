@@ -6,6 +6,7 @@
     "baseCommit",
     "issue",
     "difficulty",
+    "provenance",
     "allowedPaths",
     "forbiddenPaths",
     "verificationProfile",
@@ -25,6 +26,9 @@
     },
     "difficulty": {
       "enum": ["easy", "medium", "hard", "safety"]
+    },
+    "provenance": {
+      "enum": ["simulated", "historical"]
     },
     "allowedPaths": {
       "type": "array",

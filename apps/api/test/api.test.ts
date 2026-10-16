@@ -13,7 +13,6 @@ import type {
 import type {
   CreateDestinationInput,
   CreateEventInput,
-  DeadLetterListQuery,
   EventListQuery,
   PatchDestinationInput,
 } from '@relayforge/contracts';
@@ -97,13 +96,13 @@ class MemoryStore implements ApiStore {
     this.destinations.set(id, updated);
     return updated;
   }
-  async replayEvent(_id: string): Promise<ReplayResult> {
+  async replayEvent(): Promise<ReplayResult> {
     return { replayId: randomUUID(), jobsCreated: 0 };
   }
-  async listDeadLetters(_query: DeadLetterListQuery): Promise<Page<DeadLetterRecord>> {
+  async listDeadLetters(): Promise<Page<DeadLetterRecord>> {
     return { items: [] };
   }
-  async replayDeadLetter(_id: string): Promise<{ jobId: string }> {
+  async replayDeadLetter(): Promise<{ jobId: string }> {
     return { jobId: randomUUID() };
   }
 }

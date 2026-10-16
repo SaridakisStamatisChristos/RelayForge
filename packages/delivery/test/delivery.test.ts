@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   HttpDeliveryClient,
+  UnsafeDestinationError,
   assertSafeDestinationUrl,
   classifyNetworkError,
   classifyStatus,
+  type DeliveryTransport,
 } from '../src/index.js';
 
 const event = {
@@ -28,6 +30,7 @@ describe('delivery classification', () => {
   it.each([
     [200, 'success'],
     [204, 'success'],
+    [302, 'permanent_failure'],
     [400, 'permanent_failure'],
     [404, 'permanent_failure'],
     [408, 'retryable_failure'],
@@ -38,28 +41,44 @@ describe('delivery classification', () => {
   });
 
   it('rejects unsafe destination URL forms', () => {
-    expect(() => assertSafeDestinationUrl('http://example.com')).toThrow();
-    expect(() => assertSafeDestinationUrl('https://user:pass@example.com')).toThrow();
+    expect(() => assertSafeDestinationUrl('http://example.com')).toThrow(UnsafeDestinationError);
+    expect(() => assertSafeDestinationUrl('https://user:pass@example.com')).toThrow(
+      UnsafeDestinationError,
+    );
   });
 
-  it('posts transformed payload without redirect following', async () => {
-    const fetchFn = vi.fn(async () => new Response('', { status: 202 }));
-    const client = new HttpDeliveryClient({ fetchFn });
+  it('posts the transformed payload through the outbound transport', async () => {
+    const postJson = vi.fn(async (_url: URL, body: string) => {
+      expect(body).toContain('invoice.paid');
+      return 202;
+    });
+    const transport: DeliveryTransport = { postJson };
+    const client = new HttpDeliveryClient({ transport });
     const result = await client.deliver(event, destination);
     expect(result.outcome).toBe('success');
-    expect(fetchFn).toHaveBeenCalledOnce();
-    const init = fetchFn.mock.calls[0]?.[1];
-    expect(init?.redirect).toBe('error');
-    expect(init?.body).toContain('invoice.paid');
+    expect(postJson).toHaveBeenCalledOnce();
   });
 
   it('treats network failures as retryable', async () => {
-    const client = new HttpDeliveryClient({
-      fetchFn: vi.fn(async () => Promise.reject(new Error('boom'))),
-    });
+    const transport: DeliveryTransport = {
+      postJson: vi.fn(async () => Promise.reject(new Error('boom'))),
+    };
+    const client = new HttpDeliveryClient({ transport });
     const result = await client.deliver(event, destination);
     expect(result.outcome).toBe('retryable_failure');
     expect(result.errorCode).toBe('NETWORK_ERROR');
+  });
+
+  it('treats outbound policy violations as permanent failures', async () => {
+    const transport: DeliveryTransport = {
+      postJson: vi.fn(async () =>
+        Promise.reject(new UnsafeDestinationError('private destination')),
+      ),
+    };
+    const client = new HttpDeliveryClient({ transport });
+    const result = await client.deliver(event, destination);
+    expect(result.outcome).toBe('permanent_failure');
+    expect(result.errorCode).toBe('UNSAFE_DESTINATION');
   });
 
   it('classifies AbortSignal.timeout failures as retryable timeouts', async () => {
@@ -78,9 +97,10 @@ describe('delivery classification', () => {
   });
 
   it('classifies explicit aborts as retryable timeouts', async () => {
-    const client = new HttpDeliveryClient({
-      fetchFn: vi.fn(async () => Promise.reject(new DOMException('aborted', 'AbortError'))),
-    });
+    const transport: DeliveryTransport = {
+      postJson: vi.fn(async () => Promise.reject(new DOMException('aborted', 'AbortError'))),
+    };
+    const client = new HttpDeliveryClient({ transport });
     const result = await client.deliver(event, destination);
     expect(result.outcome).toBe('retryable_failure');
     expect(result.errorCode).toBe('TIMEOUT');

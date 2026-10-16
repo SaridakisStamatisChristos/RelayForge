@@ -56,4 +56,13 @@ describe('delivery classification', () => {
     expect(result.outcome).toBe('retryable_failure');
     expect(result.errorCode).toBe('NETWORK_ERROR');
   });
+
+  it('classifies an aborted network request as a retryable timeout', async () => {
+    const client = new HttpDeliveryClient({
+      fetchFn: vi.fn(async () => Promise.reject(new DOMException('timed out', 'AbortError'))),
+    });
+    const result = await client.deliver(event, destination);
+    expect(result.outcome).toBe('retryable_failure');
+    expect(result.errorCode).toBe('TIMEOUT');
+  });
 });

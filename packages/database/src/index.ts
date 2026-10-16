@@ -192,7 +192,7 @@ export class PostgresRelayStore implements ApiStore, WorkerStore {
             [randomUUID(), row.id, destination.id],
           );
         }
-        if (destinations.rowCount > 0) await refreshEventStatus(client, row.id);
+        if ((destinations.rowCount ?? 0) > 0) await refreshEventStatus(client, row.id);
         const refreshed = await client.query<EventRow>('SELECT * FROM events WHERE id = $1', [
           row.id,
         ]);

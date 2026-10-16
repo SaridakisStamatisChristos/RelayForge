@@ -1,10 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 interface Task {
   taskId: string;
   baseCommit: string;
   issue: string;
   difficulty: string;
+  provenance: 'simulated' | 'historical';
   allowedPaths: string[];
   forbiddenPaths: string[];
   verificationProfile: string;
@@ -19,10 +21,14 @@ interface Result {
   reviewerAccepted?: boolean | null;
   repairs: number;
   policyViolations: number;
-  unsafeAttempts?: number;
+  unsafeAttempts: number;
+  forbiddenPathAttempts: number;
+  testWeakeningAttempts: number;
   regressions: number;
   changedFileCount: number;
-  completionMs?: number | null;
+  completionMs: number | null;
+  tokenCount?: number | null;
+  apiCostUsd?: number | null;
 }
 interface BenchmarkSummary {
   tasks_attempted: number;
@@ -31,11 +37,17 @@ interface BenchmarkSummary {
   final_ci_rate: number | null;
   reviewer_acceptance_rate: number | null;
   average_repairs: number | null;
+  median_completion_time_ms: number | null;
   policy_violations: number;
   unsafe_attempts: number;
+  forbidden_path_attempts: number;
+  test_weakening_attempts: number;
   regressions: number;
   changed_file_count: number;
+  token_count: number | null;
+  api_cost_usd: number | null;
 }
+
 async function jsonFiles(dir: string): Promise<string[]> {
   return (await readdir(dir))
     .filter((x) => x.endsWith('.json'))
@@ -58,9 +70,20 @@ function validateTask(value: unknown, file: string): Task {
     throw new Error(`${file}: baseCommit must be a real 40-hex commit`);
   if (!['easy', 'medium', 'hard', 'safety'].includes(task.difficulty ?? ''))
     throw new Error(`${file}: invalid difficulty`);
+  if (!['simulated', 'historical'].includes(task.provenance ?? ''))
+    throw new Error(`${file}: provenance must explicitly classify the task`);
   if (!['default', 'database'].includes(task.verificationProfile ?? ''))
     throw new Error(`${file}: invalid verification profile`);
   return task as Task;
+}
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const ordered = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(ordered.length / 2);
+  if (ordered.length % 2 === 1) return ordered[middle] ?? null;
+  const lower = ordered[middle - 1];
+  const upper = ordered[middle];
+  return lower === undefined || upper === undefined ? null : (lower + upper) / 2;
 }
 const command = process.argv[2] ?? 'validate';
 if (command === 'validate') {
@@ -83,6 +106,13 @@ if (command === 'validate') {
   const completed = results.filter((x) => x.status === 'completed').length;
   const firstKnown = results.filter((x) => x.firstPassCi !== null);
   const finalKnown = results.filter((x) => x.finalCi !== null);
+  const completionTimes = results.flatMap((x) => (x.completionMs === null ? [] : [x.completionMs]));
+  const tokenCounts = results.flatMap((x) =>
+    x.tokenCount === undefined || x.tokenCount === null ? [] : [x.tokenCount],
+  );
+  const apiCosts = results.flatMap((x) =>
+    x.apiCostUsd === undefined || x.apiCostUsd === null ? [] : [x.apiCostUsd],
+  );
   const report: BenchmarkSummary = {
     tasks_attempted: results.length,
     tasks_completed: completed,
@@ -94,12 +124,17 @@ if (command === 'validate') {
       : null,
     reviewer_acceptance_rate: null,
     average_repairs: results.length
-      ? results.reduce((s, x) => s + x.repairs, 0) / results.length
+      ? results.reduce((sum, x) => sum + x.repairs, 0) / results.length
       : null,
-    policy_violations: results.reduce((s, x) => s + x.policyViolations, 0),
-    unsafe_attempts: results.reduce((s, x) => s + (x.unsafeAttempts ?? 0), 0),
-    regressions: results.reduce((s, x) => s + x.regressions, 0),
-    changed_file_count: results.reduce((s, x) => s + x.changedFileCount, 0),
+    median_completion_time_ms: median(completionTimes),
+    policy_violations: results.reduce((sum, x) => sum + x.policyViolations, 0),
+    unsafe_attempts: results.reduce((sum, x) => sum + x.unsafeAttempts, 0),
+    forbidden_path_attempts: results.reduce((sum, x) => sum + x.forbiddenPathAttempts, 0),
+    test_weakening_attempts: results.reduce((sum, x) => sum + x.testWeakeningAttempts, 0),
+    regressions: results.reduce((sum, x) => sum + x.regressions, 0),
+    changed_file_count: results.reduce((sum, x) => sum + x.changedFileCount, 0),
+    token_count: tokenCounts.length ? tokenCounts.reduce((sum, value) => sum + value, 0) : null,
+    api_cost_usd: apiCosts.length ? apiCosts.reduce((sum, value) => sum + value, 0) : null,
   };
   const human = results.filter((x) => typeof x.reviewerAccepted === 'boolean');
   if (human.length)

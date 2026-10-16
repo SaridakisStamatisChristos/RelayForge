@@ -4,13 +4,61 @@ RelayForge is a TypeScript/Node.js event-relay backend and a deliberately realis
 
 ## Architecture
 
-```text
-Client -> Fastify API -> PostgreSQL <- Worker -> HTTPS destinations
-                         |  |  |
-                         |  |  +-- dead letters / attempts
-                         |  +----- replay provenance
-                         +-------- DB-enforced idempotency + SKIP LOCKED claims
+```mermaid
+flowchart TB
+  subgraph Ingress["Ingress & control"]
+    Client["Clients / producers"]
+    Auth["API-key boundary"]
+    API["apps/api · Fastify HTTP API"]
+    Contracts["packages/contracts · Zod contracts"]
+    Core["packages/core · domain + retry/state rules"]
+  end
+
+  subgraph Durable["Durable coordination"]
+    DB["packages/database · transactions + locks"]
+    PG[("PostgreSQL\nevents · destinations · delivery jobs\nattempts · dead letters · replay provenance")]
+  end
+
+  subgraph Delivery["Delivery execution"]
+    Worker["apps/worker · polling processor"]
+    Claim["FOR UPDATE SKIP LOCKED\nbounded claim"]
+    HTTP["packages/delivery · outbound HTTPS"]
+    Destination["Webhook destinations"]
+    Classify["Failure classification"]
+  end
+
+  subgraph Outcomes["Outcome handling"]
+    Success["Mark delivered + record attempt"]
+    Retry["Bounded backoff + reschedule"]
+    Dead["Dead-letter permanent / exhausted failures"]
+    Replay["Controlled replay + provenance"]
+  end
+
+  subgraph Ops["Cross-cutting"]
+    Config["packages/config · validated environment"]
+    Obs["packages/observability · structured logs + redaction"]
+  end
+
+  Client --> Auth --> API --> Contracts --> Core --> DB --> PG
+  Worker --> Claim --> PG
+  PG -->|"claimed delivery job"| Worker
+  Worker --> HTTP --> Destination
+  Destination -->|"response / transport error"| Classify
+  Classify -->|"success"| Success --> DB
+  Classify -->|"transient"| Retry --> DB
+  Classify -->|"permanent / exhausted"| Dead --> DB
+  API -->|"replay request"| Replay --> DB
+  DB <--> PG
+  Config -.-> API
+  Config -.-> Worker
+  API -.-> Obs
+  Worker -.-> Obs
+
+  classDef boundary stroke-width:2px,stroke-dasharray:5 4;
+  class Auth,Claim,Classify,Replay boundary;
 ```
+
+PostgreSQL is the coordination boundary: event idempotency is database-enforced, workers claim delivery jobs with transactional locking, every attempt is recorded, and retries/dead letters/replays preserve explicit provenance instead of hiding failure history.
 
 The monorepo intentionally separates contracts, domain logic, persistence, delivery, configuration, and observability. `scripts/check-boundaries.ts` enforces the declared dependency graph.
 

@@ -1,0 +1,41 @@
+name: Integration
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: relayforge
+          POSTGRES_PASSWORD: relayforge_dev
+          POSTGRES_DB: relayforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relayforge -d relayforge"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://relayforge:relayforge_dev@localhost:5432/relayforge
+      API_AUTH_TOKEN: integration-test-token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: pnpm verify:migrations
+      - run: pnpm test:integration

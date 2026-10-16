@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.env
+.tmp/
+.DS_Store
+benchmarks/results/*.json
+!benchmarks/results/.gitkeep

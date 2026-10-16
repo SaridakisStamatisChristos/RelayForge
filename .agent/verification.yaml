@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "profiles": {
+    "default": [
+      "pnpm lint",
+      "pnpm typecheck",
+      "pnpm check:boundaries",
+      "pnpm test",
+      "pnpm build"
+    ],
+    "database": [
+      "pnpm lint",
+      "pnpm typecheck",
+      "pnpm check:boundaries",
+      "pnpm verify:migrations",
+      "pnpm test",
+      "pnpm test:integration",
+      "pnpm build"
+    ]
+  }
+}

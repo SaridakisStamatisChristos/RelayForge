@@ -1,0 +1,16 @@
+{
+  "taskId": "RF-010",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Repair an intentional cross-package dependency regression without weakening the repository boundary policy. Preserve the declared monorepo dependency graph.",
+  "difficulty": "medium",
+  "provenance": "simulated",
+  "allowedPaths": ["apps/**", "packages/**"],
+  "forbiddenPaths": ["scripts/check-boundaries.ts", ".agent/**", ".github/**"],
+  "verificationProfile": "default",
+  "expectedBehavior": [
+    "boundary check passes",
+    "forbidden dependency is removed",
+    "boundary checker itself is unchanged"
+  ],
+  "evaluatorRef": "held-out:RF-010"
+}

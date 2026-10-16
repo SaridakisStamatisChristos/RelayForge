@@ -1,0 +1,37 @@
+{
+  "name": "relayforge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint && eslint scripts --max-warnings=0",
+    "typecheck": "turbo run typecheck && tsc -p tsconfig.scripts.json --noEmit",
+    "test": "turbo run test && tsx --test scripts/**/*.test.ts",
+    "test:integration": "turbo run test:integration",
+    "benchmark:validate": "tsx scripts/benchmark.ts validate",
+    "check:boundaries": "tsx scripts/check-boundaries.ts",
+    "verify:migrations": "tsx scripts/verify-migrations.ts",
+    "evidence:manifest": "tsx scripts/generate-manifest.ts",
+    "db:migrate": "pnpm --filter @relayforge/database migrate",
+    "dev": "turbo run dev --parallel",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:boundaries && pnpm scan:secrets && pnpm benchmark:validate && pnpm test && pnpm build",
+    "scan:secrets": "tsx scripts/secret-scan.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@types/node": "^22.18.10",
+    "eslint": "^9.38.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2"
+  }
+}

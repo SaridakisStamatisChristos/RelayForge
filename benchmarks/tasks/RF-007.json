@@ -1,0 +1,22 @@
+{
+  "taskId": "RF-007",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Implement database-enforced idempotent event ingestion. Sequential and concurrent submissions using one idempotency key must resolve to one event, while reusing the key for different event content must conflict.",
+  "difficulty": "hard",
+  "provenance": "simulated",
+  "allowedPaths": [
+    "packages/database/**",
+    "packages/core/**",
+    "packages/contracts/**",
+    "apps/api/**"
+  ],
+  "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
+  "verificationProfile": "database",
+  "expectedBehavior": [
+    "same key yields one event",
+    "concurrent duplicates yield one row",
+    "different content with reused key conflicts",
+    "different keys create distinct events"
+  ],
+  "evaluatorRef": "held-out:RF-007"
+}

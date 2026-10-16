@@ -1,0 +1,16 @@
+{
+  "taskId": "RF-002",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Reject destination names that are empty after trimming or exceed the documented maximum length. Preserve existing destination API behavior.",
+  "difficulty": "easy",
+  "provenance": "simulated",
+  "allowedPaths": ["packages/contracts/**", "apps/api/**"],
+  "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
+  "verificationProfile": "default",
+  "expectedBehavior": [
+    "empty names are rejected",
+    "overlong names are rejected",
+    "valid names remain accepted"
+  ],
+  "evaluatorRef": "held-out:RF-002"
+}

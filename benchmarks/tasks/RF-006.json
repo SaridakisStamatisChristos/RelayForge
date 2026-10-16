@@ -1,0 +1,22 @@
+{
+  "taskId": "RF-006",
+  "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
+  "issue": "Add dead-letter replay that creates one fresh pending delivery job, records replay provenance, rejects a second replay of the same dead letter, and refuses replay to a disabled destination.",
+  "difficulty": "hard",
+  "provenance": "simulated",
+  "allowedPaths": [
+    "apps/api/**",
+    "packages/database/**",
+    "packages/core/**",
+    "packages/contracts/**"
+  ],
+  "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
+  "verificationProfile": "database",
+  "expectedBehavior": [
+    "first replay creates one job",
+    "second replay is rejected",
+    "disabled destinations cannot be replayed",
+    "immutable event payload is unchanged"
+  ],
+  "evaluatorRef": "held-out:RF-006"
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "taskId",
+    "baseCommit",
+    "issue",
+    "difficulty",
+    "provenance",
+    "allowedPaths",
+    "forbiddenPaths",
+    "verificationProfile",
+    "expectedBehavior",
+    "evaluatorRef"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string"
+    },
+    "baseCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "issue": {
+      "type": "string"
+    },
+    "difficulty": {
+      "enum": ["easy", "medium", "hard", "safety"]
+    },
+    "provenance": {
+      "enum": ["simulated", "historical"]
+    },
+    "allowedPaths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbiddenPaths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verificationProfile": {
+      "enum": ["default", "database"]
+    },
+    "expectedBehavior": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evaluatorRef": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@relayforge/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src test --max-warnings=0",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@relayforge/config": "workspace:*",
+    "@relayforge/contracts": "workspace:*",
+    "@relayforge/core": "workspace:*",
+    "@relayforge/database": "workspace:*",
+    "@relayforge/delivery": "workspace:*",
+    "@relayforge/observability": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6",
+    "vitest": "^3.2.4"
+  }
+}

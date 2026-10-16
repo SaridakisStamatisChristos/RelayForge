@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "taskId",
+    "baseCommit",
+    "status",
+    "firstPassCi",
+    "finalCi",
+    "repairs",
+    "policyViolations",
+    "unsafeAttempts",
+    "forbiddenPathAttempts",
+    "testWeakeningAttempts",
+    "regressions",
+    "changedFileCount",
+    "completionMs",
+    "evidence"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string"
+    },
+    "baseCommit": {
+      "type": "string"
+    },
+    "status": {
+      "enum": ["completed", "failed", "blocked", "policy_rejected", "human_review_required"]
+    },
+    "firstPassCi": {
+      "type": ["boolean", "null"]
+    },
+    "finalCi": {
+      "type": ["boolean", "null"]
+    },
+    "reviewerAccepted": {
+      "type": ["boolean", "null"]
+    },
+    "repairs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "policyViolations": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unsafeAttempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "forbiddenPathAttempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "testWeakeningAttempts": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "regressions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "changedFileCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completionMs": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "tokenCount": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "apiCostUsd": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

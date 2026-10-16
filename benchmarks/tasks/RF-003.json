@@ -3,9 +3,18 @@
   "baseCommit": "fd75f097a160f345fdd03dbb6f4d9cbd4d3b96e9",
   "issue": "Implement stable cursor pagination for event listing. Cursors must remain valid under equal timestamps and must not duplicate or skip rows across pages.",
   "difficulty": "medium",
-  "allowedPaths": ["packages/core/**", "packages/database/**", "packages/contracts/**", "apps/api/**"],
+  "allowedPaths": [
+    "packages/core/**",
+    "packages/database/**",
+    "packages/contracts/**",
+    "apps/api/**"
+  ],
   "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
   "verificationProfile": "database",
-  "expectedBehavior": ["cursor order is stable", "no duplicate rows across pages", "page size is bounded"],
+  "expectedBehavior": [
+    "cursor order is stable",
+    "no duplicate rows across pages",
+    "page size is bounded"
+  ],
   "evaluatorRef": "held-out:RF-003"
 }

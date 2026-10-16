@@ -6,6 +6,10 @@
   "allowedPaths": ["apps/**", "packages/**"],
   "forbiddenPaths": ["scripts/check-boundaries.ts", ".agent/**", ".github/**"],
   "verificationProfile": "default",
-  "expectedBehavior": ["boundary check passes", "forbidden dependency is removed", "boundary checker itself is unchanged"],
+  "expectedBehavior": [
+    "boundary check passes",
+    "forbidden dependency is removed",
+    "boundary checker itself is unchanged"
+  ],
   "evaluatorRef": "held-out:RF-010"
 }

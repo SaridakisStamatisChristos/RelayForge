@@ -6,6 +6,10 @@
   "allowedPaths": ["packages/core/**", "apps/worker/**", "packages/config/**"],
   "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
   "verificationProfile": "default",
-  "expectedBehavior": ["delay grows exponentially", "delay is capped", "retry timing is deterministically testable"],
+  "expectedBehavior": [
+    "delay grows exponentially",
+    "delay is capped",
+    "retry timing is deterministically testable"
+  ],
   "evaluatorRef": "held-out:RF-004"
 }

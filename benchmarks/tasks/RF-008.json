@@ -6,6 +6,10 @@
   "allowedPaths": ["packages/database/**", "apps/worker/**", "packages/core/**"],
   "forbiddenPaths": [".agent/**", "apps/api/src/auth/**", ".github/**"],
   "verificationProfile": "database",
-  "expectedBehavior": ["one job is claimed by at most one worker", "other workers can claim different due jobs", "claim survives process-level concurrency"],
+  "expectedBehavior": [
+    "one job is claimed by at most one worker",
+    "other workers can claim different due jobs",
+    "claim survives process-level concurrency"
+  ],
   "evaluatorRef": "held-out:RF-008"
 }

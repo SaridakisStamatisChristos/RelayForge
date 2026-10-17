@@ -1,81 +1,97 @@
 # RelayForge
 
-RelayForge is a TypeScript/Node.js event-relay backend and a deliberately realistic target repository for safety-first agentic software engineering. It accepts events, persists them in PostgreSQL, creates destination delivery jobs, processes those jobs with bounded retry semantics, records attempts, dead-letters exhausted/permanent failures, and supports controlled replay.
+RelayForge is a TypeScript/Node.js event-relay service for reliably accepting, persisting, and delivering application events to HTTPS webhook destinations. It decouples producers from outbound delivery, keeps retry and failure state durable in PostgreSQL, and exposes explicit replay and dead-letter controls instead of hiding failed work.
+
+## Why RelayForge
+
+Direct webhook delivery couples application requests to remote availability and makes failure recovery difficult to reason about. RelayForge moves that responsibility into a durable relay:
+
+- producers submit events once with an idempotency key;
+- PostgreSQL stores the event and creates delivery jobs transactionally;
+- workers claim due jobs safely across concurrent processes;
+- delivery outcomes are classified as success, transient failure, or permanent failure;
+- transient failures are retried with bounded deterministic backoff;
+- permanent or exhausted failures become dead letters;
+- operators can inspect and replay failed work with provenance preserved.
+
+RelayForge provides **at-least-once** delivery. It does not claim exactly-once semantics.
 
 ## Architecture
 
 ```mermaid
-flowchart TB
-  subgraph Ingress["Ingress & control"]
-    Client["Clients / producers"]
-    Auth["API-key boundary"]
-    API["apps/api · Fastify HTTP API"]
-    Contracts["packages/contracts · Zod contracts"]
-    Core["packages/core · domain + retry/state rules"]
-  end
+flowchart LR
+  Producer["Event producer"] -->|"POST /api/v1/events"| API["Fastify API"]
+  API --> Contracts["Zod contracts"]
+  Contracts --> Core["Domain + retry rules"]
+  Core --> DB["Database package"]
+  DB --> PG[("PostgreSQL")]
 
-  subgraph Durable["Durable coordination"]
-    DB["packages/database · transactions + locks"]
-    PG[("PostgreSQL\nevents · destinations · delivery jobs\nattempts · dead letters · replay provenance")]
-  end
+  Worker["Delivery worker"] -->|"claim due job"| PG
+  PG -->|"job + event + destination"| Worker
+  Worker --> Delivery["HTTPS delivery client"]
+  Delivery --> Destination["Webhook destination"]
 
-  subgraph Delivery["Delivery execution"]
-    Worker["apps/worker · polling processor"]
-    Claim["FOR UPDATE SKIP LOCKED\nbounded claim"]
-    HTTP["packages/delivery · outbound HTTPS"]
-    Destination["Webhook destinations"]
-    Classify["Failure classification"]
-  end
+  Destination -->|"2xx"| Delivered["Delivered"]
+  Destination -->|"transient failure"| Retry["Retry scheduled"]
+  Destination -->|"permanent / exhausted"| Dead["Dead letter"]
 
-  subgraph Outcomes["Outcome handling"]
-    Success["Mark delivered + record attempt"]
-    Retry["Bounded backoff + reschedule"]
-    Dead["Dead-letter permanent / exhausted failures"]
-    Replay["Controlled replay + provenance"]
-  end
+  Delivered --> DB
+  Retry --> DB
+  Dead --> DB
+  Replay["Replay API"] --> DB
 
-  subgraph Ops["Cross-cutting"]
-    Config["packages/config · validated environment"]
-    Obs["packages/observability · structured logs + redaction"]
-  end
-
-  Client --> Auth --> API --> Contracts --> Core --> DB --> PG
-  Worker --> Claim --> PG
-  PG -->|"claimed delivery job"| Worker
-  Worker --> HTTP --> Destination
-  Destination -->|"response / transport error"| Classify
-  Classify -->|"success"| Success --> DB
-  Classify -->|"transient"| Retry --> DB
-  Classify -->|"permanent / exhausted"| Dead --> DB
-  API -->|"replay request"| Replay --> DB
-  DB <--> PG
-  Config -.-> API
+  Config["Validated configuration"] -.-> API
   Config -.-> Worker
-  API -.-> Obs
-  Worker -.-> Obs
-
-  classDef boundary stroke-width:2px,stroke-dasharray:5 4;
-  class Auth,Claim,Classify,Replay boundary;
+  Observability["Structured logging + redaction"] -.-> API
+  Observability -.-> Worker
 ```
 
-PostgreSQL is the coordination boundary: event idempotency is database-enforced, workers claim delivery jobs with transactional locking, every attempt is recorded, and retries/dead letters/replays preserve explicit provenance instead of hiding failure history.
+PostgreSQL is the coordination boundary. Event idempotency is database-enforced, event creation and initial job creation share one transaction, workers claim jobs with transactional locking, attempts are recorded durably, and replay/dead-letter operations preserve provenance.
 
-The monorepo intentionally separates contracts, domain logic, persistence, delivery, configuration, and observability. `scripts/check-boundaries.ts` enforces the declared dependency graph.
+See [docs/architecture.md](docs/architecture.md) for the delivery state machine, worker lease behavior, replay semantics, and package dependency boundaries.
 
-## Packages
+## Core capabilities
 
-- `apps/api` — Fastify API, API-key boundary, HTTP contracts.
-- `apps/worker` — delivery processor and polling worker.
-- `packages/contracts` — Zod request/domain contracts; no internal dependencies.
-- `packages/core` — errors, ports, retry/state logic, cursors and transformations.
-- `packages/database` — typed `pg` repository, migrations, transactions and locks.
-- `packages/delivery` — isolated outbound HTTPS client and failure classification.
-- `packages/config` — environment validation.
-- `packages/observability` — structured logging field conventions/redaction metadata.
+- **Idempotent event ingestion** with database uniqueness and semantic conflict detection.
+- **Transactional fan-out** from an accepted event to eligible destination jobs.
+- **Concurrent-safe worker claims** using PostgreSQL row locking and bounded processing leases.
+- **Bounded retry policy** with deterministic exponential backoff.
+- **Attempt history and dead letters** for permanent or exhausted delivery failures.
+- **Controlled replay** for events and one-time dead-letter replay.
+- **Destination filtering and enable/disable controls**.
+- **Liveness and readiness endpoints** with database-backed readiness.
+- **HTTPS destination validation and SSRF defenses** in the outbound delivery path.
+- **Structured logging conventions and redaction metadata**.
+- **Repository verification gates** for formatting, linting, types, package boundaries, secret scanning, tests, builds, migrations, and PostgreSQL integration.
+
+## Repository layout
+
+```text
+apps/
+  api/             Fastify HTTP API
+  worker/          polling delivery worker
+packages/
+  config/          validated environment configuration
+  contracts/       Zod API/domain contracts
+  core/            domain types, ports, retry and state rules
+  database/        PostgreSQL repository, migrations and locking
+  delivery/        outbound HTTPS delivery and failure classification
+  observability/   logging field conventions and redaction metadata
+scripts/           repository verification and maintenance utilities
+benchmarks/        development benchmark schemas, tasks and result tooling
+docs/              architecture, operations, security, testing and development docs
+```
+
+The runtime packages intentionally remain separated. `pnpm check:boundaries` enforces the declared internal dependency graph.
+
+## Requirements
+
+- Node.js 22
+- pnpm 10
+- PostgreSQL 17-compatible server
+- Docker and Docker Compose for the default local database workflow
 
 ## Local development
-
-Requirements: Node.js 22, pnpm 10, Docker, Git.
 
 ```bash
 corepack enable
@@ -84,22 +100,28 @@ docker compose up -d postgres
 cp .env.example .env
 pnpm db:migrate
 pnpm --filter @relayforge/api dev
-# in another terminal
+```
+
+Start the worker in another terminal:
+
+```bash
 pnpm --filter @relayforge/worker dev
 ```
 
-No external API key is required to build or run RelayForge itself. Development database credentials in `docker-compose.yml` are local-only.
+No external provider API key is required to build or run RelayForge. The credentials in `docker-compose.yml` are for local development only.
 
-## API
+## Usage
 
-Liveness and readiness:
+### Health
 
 ```bash
 curl http://localhost:3000/health
 curl http://localhost:3000/ready
 ```
 
-Create a destination:
+`/health` reports process liveness. `/ready` verifies the PostgreSQL dependency and returns `503` when the service cannot perform required work.
+
+### Create a destination
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/destinations \
@@ -108,7 +130,7 @@ curl -X POST http://localhost:3000/api/v1/destinations \
   -d '{"name":"warehouse","url":"https://example.invalid/webhook","enabled":true,"eventTypes":["invoice.paid"]}'
 ```
 
-Create an idempotent event:
+### Submit an idempotent event
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/events \
@@ -118,17 +140,17 @@ curl -X POST http://localhost:3000/api/v1/events \
   -d '{"type":"invoice.paid","source":"billing","payload":{"invoiceId":"INV-1024","amount":3999}}'
 ```
 
-Other endpoints include event listing/filtering/cursor pagination, event details with delivery summary, destination enable/disable, event replay, dead-letter listing and one-time dead-letter replay.
+The API also supports event listing/filtering/cursor pagination, event details with delivery summaries, destination enable/disable, event replay, dead-letter listing, and one-time dead-letter replay.
 
-## Verification
+## Testing and verification
 
-Fast local gate:
+Run the complete local static/unit/build gate:
 
 ```bash
 pnpm verify
 ```
 
-Database gate (PostgreSQL required):
+Run the PostgreSQL-backed verification profile:
 
 ```bash
 pnpm db:migrate
@@ -136,22 +158,32 @@ pnpm verify:migrations
 pnpm test:integration
 ```
 
-GitHub Actions runs both the static/unit/build profile and a real PostgreSQL integration profile on pull requests.
+GitHub Actions runs both profiles on pull requests. The CI workflow also generates a source manifest artifact for revision-level integrity evidence.
 
-## Agent safety boundary
+See [docs/testing.md](docs/testing.md) for test scope and [docs/development.md](docs/development.md) for repository safeguards and contribution workflow.
 
-`AGENTS.md` is the human-readable operating contract. `.agent/policy.yaml` classifies safe, review-required and forbidden paths; `.agent/verification.yaml` is trusted verification configuration. `scripts/validate-agent-change.ts` rejects forbidden paths, traversal/symlink escapes, test deletion, obvious committed secrets and unrestricted shell-execution changes. Autonomous merge is outside the contract: draft pull requests are the maximum publication authority.
+## Security
 
-## Benchmark target
+Protected API routes use a bearer token from `API_AUTH_TOKEN`. Destination URLs must use HTTPS, embedded credentials are rejected, redirects are disabled, DNS answers are validated, and outbound connections are pinned to validated resolution results.
 
-`benchmarks/tasks` contains issue-only historical-style tasks and no answer patches. The benchmark harness records automated outcomes separately from human review. Actual hidden evaluators and external agent runs must remain outside the coding agent's visible task context; public repository fixtures are not represented as hidden evidence.
+These controls are defense in depth rather than a universal SSRF guarantee. See [docs/security.md](docs/security.md) for the implemented boundary and deployment assumptions.
 
-RelayForge is designed to be targeted by the independent `Workflows-N8N` control plane, but the public repository works without n8n, Linear, or model credentials.
+## Operations
 
-## Credential phases
+Operational behavior, worker recovery, migration rules, readiness semantics, and replay behavior are documented in [docs/operations.md](docs/operations.md).
 
-RelayForge build: none beyond local PostgreSQL credentials. Direct external agent campaign: an OpenAI API key and narrowly scoped GitHub credential in the orchestration layer. Full Linear flow: additionally a Linear credential and relay secret; self-hosted n8n also needs `N8N_ENCRYPTION_KEY`. None belong in this repository.
+## Current limitations
 
-## Claim boundary
+RelayForge intentionally does **not** claim:
 
-This repository does **not** claim exactly-once delivery, enterprise readiness, zero data loss, comprehensive SSRF prevention, production scale, autonomous coding superiority, productivity gains, n8n adoption, or human reviewer satisfaction. Evidence and limitations are documented in `docs/R7_EVIDENCE.md` and the CI history.
+- exactly-once delivery;
+- production-scale capacity or a published throughput envelope;
+- zero data loss under every infrastructure failure mode;
+- universal SSRF prevention across arbitrary future transports or proxy configurations;
+- enterprise identity, compliance certification, or production-readiness certification.
+
+Delivery is at-least-once. A reclaimed job may repeat an outbound request when a previous worker delivered successfully but failed before persisting the outcome. Production deployments should add environment-appropriate backup/restore procedures, outbound egress controls, capacity validation, and operational monitoring.
+
+## License
+
+RelayForge is proprietary software. See [LICENSE](LICENSE) for the applicable terms.

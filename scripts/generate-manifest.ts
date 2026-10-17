@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const ignoredDirectories = new Set(['.git', '.turbo', 'coverage', 'dist', 'node_modules']);
-const ignoredFiles = new Set(['r7-file-manifest.json']);
+const ignoredFiles = new Set(['source-manifest.json']);
 
 interface ManifestEntry {
   path: string;

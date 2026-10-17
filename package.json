@@ -17,7 +17,7 @@
     "benchmark:validate": "tsx scripts/benchmark.ts validate",
     "check:boundaries": "tsx scripts/check-boundaries.ts",
     "verify:migrations": "tsx scripts/verify-migrations.ts",
-    "evidence:manifest": "tsx scripts/generate-manifest.ts",
+    "manifest:source": "tsx scripts/generate-manifest.ts",
     "db:migrate": "pnpm --filter @relayforge/database migrate",
     "dev": "turbo run dev --parallel",
     "format:check": "prettier --check .",

@@ -27,11 +27,11 @@ jobs:
       - run: pnpm benchmark:validate
       - run: pnpm test
       - run: pnpm build
-      - name: Generate R7 source manifest
-        run: pnpm evidence:manifest > r7-file-manifest.json
-      - name: Upload R7 evidence manifest
+      - name: Generate source manifest
+        run: pnpm manifest:source > source-manifest.json
+      - name: Upload source manifest
         uses: actions/upload-artifact@v4
         with:
-          name: relayforge-r7-manifest-${{ github.sha }}
-          path: r7-file-manifest.json
+          name: relayforge-source-manifest-${{ github.sha }}
+          path: source-manifest.json
           if-no-files-found: error

@@ -69,7 +69,14 @@ export class DeliveryProcessor {
       await this.store.markPermanentFailure(attempt, 'max_attempts_exhausted');
       return true;
     }
-    const delayMs = calculateRetryDelayMs(job.attemptNumber, this.retryPolicy);
+    const backoffMs = calculateRetryDelayMs(job.attemptNumber, this.retryPolicy);
+    // Honor valid remote throttling hints, without decreasing our existing backoff
+    // or allowing a remote destination to schedule unbounded retry delays.
+    const hintedMs = result.retryAfterMs;
+    const delayMs =
+      hintedMs === undefined || !Number.isFinite(hintedMs) || hintedMs < 0
+        ? backoffMs
+        : Math.max(backoffMs, Math.min(this.retryPolicy.maxDelayMs, hintedMs));
     await this.store.scheduleRetry(attempt, new Date(this.clock.now().getTime() + delayMs));
     return true;
   }

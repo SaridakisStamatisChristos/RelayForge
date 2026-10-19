@@ -287,11 +287,7 @@ export interface HttpResponseMetadata {
 // Optional for compatibility with existing custom transports that return only a status code.
 export interface DeliveryTransport {
   postJson(url: URL, body: string, timeoutMs: number): Promise<number>;
-  postJsonWithMetadata?(
-    url: URL,
-    body: string,
-    timeoutMs: number,
-  ): Promise<HttpResponseMetadata>;
+  postJsonWithMetadata?(url: URL, body: string, timeoutMs: number): Promise<HttpResponseMetadata>;
 }
 
 export function parseRetryAfterMs(

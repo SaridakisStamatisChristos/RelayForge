@@ -294,7 +294,10 @@ export interface DeliveryTransport {
   ): Promise<HttpResponseMetadata>;
 }
 
-export function parseRetryAfterMs(value: string | undefined, nowMs = Date.now()): number | undefined {
+export function parseRetryAfterMs(
+  value: string | undefined,
+  nowMs = Date.now(),
+): number | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
   if (/^\d+$/u.test(trimmed)) {
@@ -396,9 +399,7 @@ export class HttpDeliveryClient implements DeliveryClient {
         : { statusCode: await this.transport.postJson(url, body, this.timeoutMs) };
       const outcome = classifyStatus(response.statusCode);
       const retryAfterMs =
-        outcome === 'retryable_failure'
-          ? parseRetryAfterMs(response.retryAfter)
-          : undefined;
+        outcome === 'retryable_failure' ? parseRetryAfterMs(response.retryAfter) : undefined;
       return {
         outcome,
         statusCode: response.statusCode,

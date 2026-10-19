@@ -356,7 +356,7 @@ export class PinnedHttpsTransport implements DeliveryTransport {
             reject(new Error('Destination response did not include a status code'));
             return;
           }
-          const retryAfter = response.headers['retry-after'];
+          const retryAfter = response.headers?.['retry-after'];
           resolve({
             statusCode: response.statusCode,
             ...(typeof retryAfter === 'string' ? { retryAfter } : {}),
@@ -391,12 +391,12 @@ export class HttpDeliveryClient implements DeliveryClient {
     try {
       const url = assertSafeDestinationUrl(destination.url, this.allowHttpForTests);
       const body = JSON.stringify(transformPayload(event, destination));
-      const response = this.transport.postJsonWithMetadata
+      const response: HttpResponseMetadata = this.transport.postJsonWithMetadata
         ? await this.transport.postJsonWithMetadata(url, body, this.timeoutMs)
         : { statusCode: await this.transport.postJson(url, body, this.timeoutMs) };
       const outcome = classifyStatus(response.statusCode);
       const retryAfterMs =
-        outcome === 'retryable_failure' && 'retryAfter' in response
+        outcome === 'retryable_failure'
           ? parseRetryAfterMs(response.retryAfter)
           : undefined;
       return {

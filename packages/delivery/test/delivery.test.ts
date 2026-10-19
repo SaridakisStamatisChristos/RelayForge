@@ -60,7 +60,6 @@ describe('delivery classification', () => {
     expect(postJson).toHaveBeenCalledOnce();
   });
 
-
   it('parses Retry-After delta seconds and dates safely', () => {
     const now = Date.parse('2026-10-19T12:00:00Z');
     expect(parseRetryAfterMs('120', now)).toBe(120_000);

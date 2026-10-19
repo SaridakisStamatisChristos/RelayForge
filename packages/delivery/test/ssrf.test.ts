@@ -82,6 +82,34 @@ describe('SSRF protection', () => {
     await expectUnsafe(resolvePublicDestinationAddress('fd00:ec2::254'));
   });
 
+  it('provides Retry-After metadata without changing the pinned transport contract', async () => {
+    const fakeRequest: OutboundRequest = {
+      once: () => fakeRequest,
+      end: () => undefined,
+    };
+    const requestFactory: HttpsRequestFactory = (_url, _options, onResponse) => {
+      const response = {
+        statusCode: 429,
+        headers: { 'retry-after': '7' },
+        resume() {
+          return this;
+        },
+      } as unknown as IncomingMessage;
+      onResponse(response);
+      return fakeRequest;
+    };
+    const transport = new PinnedHttpsTransport({
+      resolver: async () => [{ address: '8.8.8.8', family: 4 as const }],
+      requestFactory,
+    });
+    const url = new URL('https://example.com/hook');
+    expect(await transport.postJsonWithMetadata(url, '{}', 1_000)).toEqual({
+      statusCode: 429,
+      retryAfter: '7',
+    });
+    expect(await transport.postJson(url, '{}', 1_000)).toBe(429);
+  });
+
   it('pins the validated DNS answer without a second resolution', async () => {
     let resolverCalls = 0;
     const resolver = vi.fn(async () => {

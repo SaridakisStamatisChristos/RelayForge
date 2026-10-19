@@ -12,16 +12,14 @@ This document records a **two-axis assessment**, not a claim that RelayForge is 
 
 ## Module decisions (present need / potential evolution)
 
-| Module | Present | Evolution | Action |
-| --- | --- | --- | --- |
-| Identity and resource authorization | Existing single operator token | Customer-scoped workload identities likely required for independent remote customers | **REVIEW_REQUIRED**: auth path is forbidden; do not treat global token as a customer identity |
-| Users / organizations | Not required by current operator-only mode | Accounts or workspaces only if confirmed independently owned customer resources | **REVIEW_REQUIRED** jointly with identity and database migration; no speculative signup UI |
-| Durable events, jobs and webhooks | Implemented | Reuse, with bounded `Retry-After` pacing improvement | **IMPLEMENT_NOW** and **REUSE** |
-| Entitlements / usage | No paid or quota contract | Only if product contract defines consumption unit, owner, and enforcement | **DEFER_EXTERNAL**; do not add unused counters or fake entitlements |
-| Billing | No paid offer established | Depends on merchant, product model, subscriptions/prices and tax decisions | **DEFER_EXTERNAL**; no provider or live charges |
-| Email | No external recipient flow established | Depends on recovery/invitation/notification flows and sender approval | **NOT_APPLICABLE** today; no live mail |
-| Administration / audit | Existing replay/dead-letter controls with one operator | Scope privileged operations per verified owner and make retries/replays auditable if hosted | **REVIEW_REQUIRED** with resource authority |
-| Operations and privacy | Basic health, redaction, failure recovery | Hosting, backup/restore, retention/export/deletion and incident procedures | **RECOMMENDED_LATER** for an evaluated deployment |
+- **Identity / authorization — REVIEW_REQUIRED.** The single operator token exists, but customer-scoped workload identity would require protected auth and reviewed database changes.
+- **Users / organizations — REVIEW_REQUIRED.** Introduce only for confirmed separately owned customers; avoid speculative signup workflows.
+- **Durable jobs / webhooks — REUSE and IMPLEMENT_NOW.** Preserve PostgreSQL as the source of truth and add bounded HTTP retry hints.
+- **Usage / entitlements — DEFER_EXTERNAL.** No agreed consumption unit, enforcement model or paid plan.
+- **Billing — DEFER_EXTERNAL.** Merchant, product pricing and tax decisions remain unconfirmed; no live charges.
+- **Email — NOT_APPLICABLE.** No demonstrated recipient flow or authorized sender.
+- **Administration / audit — REVIEW_REQUIRED.** Customer-scoped replay and privileged access require a verified principal and resource authority.
+- **Operations / privacy — RECOMMENDED_LATER.** Hosted deployments require backup/restore qualification and explicit retention, export and deletion workflows.
 
 ## Protected changes: owner-review implementation contract
 

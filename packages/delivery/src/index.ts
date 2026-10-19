@@ -11,6 +11,7 @@ export interface DeliveryResult {
   statusCode?: number;
   errorCode?: string;
   durationMs: number;
+  retryAfterMs?: number;
 }
 
 export interface DeliveryClient {
@@ -278,8 +279,32 @@ export type HttpsRequestFactory = (
 const defaultHttpsRequestFactory: HttpsRequestFactory = (url, options, onResponse) =>
   httpsRequest(url, options, onResponse);
 
+export interface HttpResponseMetadata {
+  statusCode: number;
+  retryAfter?: string;
+}
+
+// Optional for compatibility with existing custom transports that return only a status code.
 export interface DeliveryTransport {
   postJson(url: URL, body: string, timeoutMs: number): Promise<number>;
+  postJsonWithMetadata?(
+    url: URL,
+    body: string,
+    timeoutMs: number,
+  ): Promise<HttpResponseMetadata>;
+}
+
+export function parseRetryAfterMs(value: string | undefined, nowMs = Date.now()): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/u.test(trimmed)) {
+    const seconds = Number(trimmed);
+    if (!Number.isFinite(seconds)) return undefined;
+    return Math.min(Number.MAX_SAFE_INTEGER, seconds * 1_000);
+  }
+  const timestamp = Date.parse(trimmed);
+  if (!Number.isFinite(timestamp) || timestamp <= nowMs) return undefined;
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.ceil(timestamp - nowMs));
 }
 
 export interface PinnedHttpsTransportOptions {
@@ -297,12 +322,21 @@ export class PinnedHttpsTransport implements DeliveryTransport {
   }
 
   async postJson(url: URL, body: string, timeoutMs: number): Promise<number> {
+    const response = await this.postJsonWithMetadata(url, body, timeoutMs);
+    return response.statusCode;
+  }
+
+  async postJsonWithMetadata(
+    url: URL,
+    body: string,
+    timeoutMs: number,
+  ): Promise<HttpResponseMetadata> {
     if (url.protocol !== 'https:') {
       throw new UnsafeDestinationError('Pinned transport requires https://');
     }
     const signal = AbortSignal.timeout(timeoutMs);
     const resolved = await resolvePublicDestinationAddress(url.hostname, this.resolver, signal);
-    return new Promise<number>((resolve, reject) => {
+    return new Promise<HttpResponseMetadata>((resolve, reject) => {
       const request = this.requestFactory(
         url,
         {
@@ -322,7 +356,11 @@ export class PinnedHttpsTransport implements DeliveryTransport {
             reject(new Error('Destination response did not include a status code'));
             return;
           }
-          resolve(response.statusCode);
+          const retryAfter = response.headers['retry-after'];
+          resolve({
+            statusCode: response.statusCode,
+            ...(typeof retryAfter === 'string' ? { retryAfter } : {}),
+          });
         },
       );
       request.once('error', reject);
@@ -352,14 +390,19 @@ export class HttpDeliveryClient implements DeliveryClient {
     const started = performance.now();
     try {
       const url = assertSafeDestinationUrl(destination.url, this.allowHttpForTests);
-      const statusCode = await this.transport.postJson(
-        url,
-        JSON.stringify(transformPayload(event, destination)),
-        this.timeoutMs,
-      );
+      const body = JSON.stringify(transformPayload(event, destination));
+      const response = this.transport.postJsonWithMetadata
+        ? await this.transport.postJsonWithMetadata(url, body, this.timeoutMs)
+        : { statusCode: await this.transport.postJson(url, body, this.timeoutMs) };
+      const outcome = classifyStatus(response.statusCode);
+      const retryAfterMs =
+        outcome === 'retryable_failure' && 'retryAfter' in response
+          ? parseRetryAfterMs(response.retryAfter)
+          : undefined;
       return {
-        outcome: classifyStatus(statusCode),
-        statusCode,
+        outcome,
+        statusCode: response.statusCode,
+        ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
         durationMs: Math.max(0, Math.round(performance.now() - started)),
       };
     } catch (error) {

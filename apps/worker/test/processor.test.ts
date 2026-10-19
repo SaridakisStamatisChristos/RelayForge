@@ -80,6 +80,55 @@ describe('DeliveryProcessor', () => {
     expect(store.retried[0]?.next.toISOString()).toBe('2026-01-01T00:00:01.000Z');
   });
 
+  it('uses a greater Retry-After delay but caps it at policy max', async () => {
+    const store = new FakeStore(baseJob);
+    const processor = new DeliveryProcessor(
+      store,
+      new FakeDelivery({
+        outcome: 'retryable_failure',
+        statusCode: 429,
+        retryAfterMs: 30_000,
+        durationMs: 2,
+      }),
+      policy,
+      clock,
+    );
+    await processor.processNext();
+    expect(store.retried[0]?.next.toISOString()).toBe('2026-01-01T00:00:30.000Z');
+
+    const capped = new FakeStore(baseJob);
+    await new DeliveryProcessor(
+      capped,
+      new FakeDelivery({
+        outcome: 'retryable_failure',
+        statusCode: 503,
+        retryAfterMs: Number.MAX_SAFE_INTEGER,
+        durationMs: 1,
+      }),
+      policy,
+      clock,
+    ).processNext();
+    expect(capped.retried[0]?.next.toISOString()).toBe('2026-01-01T00:01:00.000Z');
+  });
+
+  it('does not let invalid or shorter hints defeat exponential backoff', async () => {
+    for (const retryAfterMs of [NaN, -1, 100]) {
+      const store = new FakeStore({ ...baseJob, attemptNumber: 3 });
+      await new DeliveryProcessor(
+        store,
+        new FakeDelivery({
+          outcome: 'retryable_failure',
+          statusCode: 429,
+          retryAfterMs,
+          durationMs: 1,
+        }),
+        policy,
+        clock,
+      ).processNext();
+      expect(store.retried[0]?.next.toISOString()).toBe('2026-01-01T00:00:04.000Z');
+    }
+  });
+
   it('dead-letters permanent responses', async () => {
     const store = new FakeStore(baseJob);
     await new DeliveryProcessor(

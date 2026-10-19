@@ -5,6 +5,7 @@ import {
   assertSafeDestinationUrl,
   classifyNetworkError,
   classifyStatus,
+  parseRetryAfterMs,
   type DeliveryTransport,
 } from '../src/index.js';
 
@@ -57,6 +58,32 @@ describe('delivery classification', () => {
     const result = await client.deliver(event, destination);
     expect(result.outcome).toBe('success');
     expect(postJson).toHaveBeenCalledOnce();
+  });
+
+  it('parses Retry-After delta seconds and dates safely', () => {
+    const now = Date.parse('2026-10-19T12:00:00Z');
+    expect(parseRetryAfterMs('120', now)).toBe(120_000);
+    expect(parseRetryAfterMs('Mon, 19 Oct 2026 12:02:00 GMT', now)).toBe(120_000);
+    expect(parseRetryAfterMs('Mon, 19 Oct 2026 11:59:00 GMT', now)).toBeUndefined();
+    expect(parseRetryAfterMs('nonsense', now)).toBeUndefined();
+    expect(parseRetryAfterMs(undefined, now)).toBeUndefined();
+    expect(parseRetryAfterMs('9999999999999999999999999', now)).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('honors retry hints only for transient responses', async () => {
+    const transport: DeliveryTransport = {
+      postJson: vi.fn(async () => 429),
+      postJsonWithMetadata: vi.fn(async () => ({ statusCode: 429, retryAfter: '45' })),
+    };
+    const client = new HttpDeliveryClient({ transport });
+    const result = await client.deliver(event, destination);
+    expect(result.outcome).toBe('retryable_failure');
+    expect(result.retryAfterMs).toBe(45_000);
+    expect(transport.postJson).not.toHaveBeenCalled();
+    transport.postJsonWithMetadata = vi.fn(async () => ({ statusCode: 200, retryAfter: '45' }));
+    const success = await client.deliver(event, destination);
+    expect(success.outcome).toBe('success');
+    expect(success.retryAfterMs).toBeUndefined();
   });
 
   it('treats network failures as retryable', async () => {
